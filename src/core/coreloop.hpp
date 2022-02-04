@@ -36,24 +36,30 @@ struct core_traits
     // Fiber pools
     using core_pool_traits = np::detail::default_fiber_pool_traits;
     using database_pool_traits = secondary_pool_traits;
-};
 
-
-struct network_buffer
-{
-    uint16_t size;
-    uint8_t data[500];
+    // Network packet size
+    static constexpr std::size_t packet_max_size = 500;
 };
 
 
 template <typename derived, typename traits=core_traits>
 class core_loop
 {
+protected:
+    struct network_buffer
+    {
+        uint16_t size;
+        uint8_t data[traits::packet_max_size];
+    };
+
 public:
     core_loop(uint16_t port, uint16_t core_threads, uint16_t network_threads, uint16_t database_threads) noexcept;
 
     template <typename database_traits>
     void start(database<database_traits>* database) noexcept;
+
+    template <typename C>
+    void send_data(const udp::endpoint& endpoint, const void* buffer, uint32_t size, C&& callback) noexcept;
 
 protected:
     void handle_connections() noexcept;
@@ -167,7 +173,22 @@ void core_loop<derived, traits>::start(database<database_traits>* database) noex
     {
         t.join();
     }
+}
 
+template <typename derived, typename traits>
+template <typename C>
+void core_loop<derived, traits>::send_data(const udp::endpoint& endpoint, const void* buffer, uint32_t size, C&& callback) noexcept
+{
+    _socket.async_send_to(boost::asio::const_buffer(buffer, size), endpoint,
+        [buffer, size, callback = std::forward<C>(callback)](const boost::system::error_code& error, std::size_t bytes) noexcept
+    {
+        callback(buffer, size, bytes);
+
+        if (error)
+        {
+            // TODO(gpascualg): Do something in case of error
+        }
+    });
 }
 
 template <typename derived, typename traits>
@@ -177,7 +198,7 @@ void core_loop<derived, traits>::handle_connections() noexcept
     auto buffer = _data_mempool.get();
     auto endpoint = _endpoints_mempool.get();
 
-    _socket.async_receive_from(boost::asio::buffer(buffer->data, 500), *endpoint, 0, [this, buffer, endpoint](const auto& error, std::size_t bytes) noexcept {
+    _socket.async_receive_from(boost::asio::buffer(buffer->data, traits::packet_max_size), *endpoint, 0, [this, buffer, endpoint](const auto& error, std::size_t bytes) noexcept {
         // std::cout << "Incoming packet from " << *endpoint << " [" << bytes << "b, " << static_cast<bool>(error) << "]" << std::endl;
 
         if (error)

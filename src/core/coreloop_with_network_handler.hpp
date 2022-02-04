@@ -29,7 +29,9 @@ namespace std
 template <typename derived>
 class coreloop_with_network_handler : public core_loop<coreloop_with_network_handler<derived>>
 {
+protected:
     using base_t = core_loop<coreloop_with_network_handler<derived>>;
+    using network_buffer = typename base_t::network_buffer;
 
     struct network_input_bundle
     {

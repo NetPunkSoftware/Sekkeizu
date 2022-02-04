@@ -7,15 +7,17 @@
 
 class core_loop_impl : public coreloop_with_network_handler<core_loop_impl>
 {
+    using base_t = coreloop_with_network_handler<core_loop_impl>;
+
 public:
     core_loop_impl() :
-        coreloop_with_network_handler<core_loop_impl>(5454, 2, 2, 2)
+        base_t(5454, 2, 2, 2)
     {}
 
     void new_client(const udp::endpoint& endpoint)
     {}
 
-    void client_inputs(const udp::endpoint& endpoint, network_buffer* buffer)
+    void client_inputs(const udp::endpoint& endpoint, base_t::network_buffer* buffer)
     {}
 
     void post_network_tick(const std::chrono::milliseconds& diff)
