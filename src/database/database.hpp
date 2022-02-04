@@ -186,7 +186,7 @@ template <typename pool_traits>
 template <fixed_string collection, typename C>
 inline void database<pool_traits>::ensure_creation(bson_t& document, C&& callback) noexcept
 {
-    execute([this, document = bson_copy(document), callback = std::forward<C>(callback)](auto database) {
+    execute([this, document = bson_copy(&document), callback = std::forward<C>(callback)](auto database) {
         auto col = mongoc_database_get_collection(database, collection);
         ensure_creation_impl(col, document, std::forward<C>(callback));
     });
@@ -208,7 +208,7 @@ template <typename pool_traits>
 template <typename C>
 inline void database<pool_traits>::ensure_creation(uint8_t collection, bson_t& document, C&& callback) noexcept
 {
-    execute([this, collection, document = bson_copy(document), callback = std::forward<C>(callback)](auto database) {
+    execute([this, collection, document = bson_copy(&document), callback = std::forward<C>(callback)](auto database) {
         auto col = get_collection(database, collection);
         ensure_creation_impl(col, document, std::forward<C>(callback));
     });

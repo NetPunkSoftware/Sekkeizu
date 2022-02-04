@@ -120,7 +120,7 @@ void core_loop<derived, traits>::start(database<database_traits>* database) noex
     if (database != nullptr)
     {
         _database_pool.start(_num_database_threads, false);
-        database->set_fiber_pool(_database_pool);
+        database->set_fiber_pool(&_database_pool);
     }
 
     // Push main loop logic
