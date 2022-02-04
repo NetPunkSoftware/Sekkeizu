@@ -2,8 +2,6 @@
 
 #include "core/coreloop.hpp"
 
-#include <entity/scheme.hpp>
-#include <entity/component.hpp>
 #include <synchronization/mutex.hpp>
 
 #include <boost/container_hash/hash.hpp>
@@ -26,15 +24,11 @@ namespace std
 }
 
 
-template <typename derived>
-class coreloop_with_network_handler : public core_loop<coreloop_with_network_handler<derived>>
+template <typename derived, uint32_t packet_size>
+class coreloop_network_plugin
 {
-    // Allow core_loop to call our protected/private methods through CRTP
-    friend core_loop<coreloop_with_network_handler<derived>>;
-
 protected:
-    using base_t = core_loop<coreloop_with_network_handler<derived>>;
-    using network_buffer = typename base_t::network_buffer;
+    using network_buffer = typename ::network_buffer<packet_size>;
 
     struct network_input_bundle
     {
@@ -43,16 +37,17 @@ protected:
     };
 
 public:
-    using base_t::core_loop;
+    template <typename T>
+    void tick(T* core_loop, const typename T::traits_t::base_time& diff) noexcept;
+
+    template <typename T>
+    void handle_network_packet(T* core_loop, udp::endpoint* endpoint, network_buffer* buffer) noexcept;
+
+    void disconnected(const udp::endpoint& endpoint) noexcept;
 
 protected:
     // Do not destroy this class through base pointers
-    ~coreloop_with_network_handler() noexcept = default;
-
-    void tick(const std::chrono::milliseconds& diff) noexcept;
-    void handle_network_packet(udp::endpoint* endpoint, network_buffer* buffer) noexcept;
-
-    void disconnected(const udp::endpoint& endpoint) noexcept;
+    ~coreloop_network_plugin() noexcept = default;
 
 protected:
     // Pending new users
@@ -66,8 +61,9 @@ protected:
 };
 
 
-template <typename derived>
-void coreloop_with_network_handler<derived>::tick(const std::chrono::milliseconds& diff) noexcept
+template <typename derived, uint32_t packet_size>
+template <typename T>
+void coreloop_network_plugin<derived, packet_size>::tick(T* core_loop, const typename T::traits_t::base_time& diff) noexcept
 {
     // First handle network packets
     if (_pending_inputs.size())
@@ -98,7 +94,7 @@ void coreloop_with_network_handler<derived>::tick(const std::chrono::millisecond
         _inputs_counter.reset();
         for (auto& [endpoint, buffers] : pending_inputs)
         {
-            base_t::_core_pool.push([this, &endpoint, &buffers] {
+            core_loop->execute([this, &endpoint, &buffers] {
                 for (auto& buffer : buffers)
                 {
                     reinterpret_cast<derived*>(this)->client_inputs(endpoint, buffer);
@@ -112,11 +108,12 @@ void coreloop_with_network_handler<derived>::tick(const std::chrono::millisecond
     reinterpret_cast<derived*>(this)->post_network_tick(diff);
 }
 
-template <typename derived>
-void coreloop_with_network_handler<derived>::handle_network_packet(udp::endpoint* endpoint, network_buffer* buffer) noexcept
+template <typename derived, uint32_t packet_size>
+template <typename T>
+void coreloop_network_plugin<derived, packet_size>::handle_network_packet(T* core_loop, udp::endpoint* endpoint, network_buffer* buffer) noexcept
 {
     // TODO(gpascualg): Do we want this in a _network_pool, so that it doesn't hog the main pool's resources?
-    base_t::_core_pool.push([this, endpoint, buffer] {
+    core_loop->execute([this, core_loop, endpoint, buffer] {
         _pending_inputs_mutex.lock();
 
         // Is this a new user?
@@ -139,12 +136,12 @@ void coreloop_with_network_handler<derived>::handle_network_packet(udp::endpoint
         _pending_inputs_mutex.unlock();
 
         // Endpoint can be already released
-        base_t::release_network_endpoint(endpoint);
+        core_loop->release_network_endpoint(endpoint);
     });
 }
 
-template <typename derived>
-void coreloop_with_network_handler<derived>::disconnected(const udp::endpoint& endpoint) noexcept
+template <typename derived, uint32_t packet_size>
+void coreloop_network_plugin<derived, packet_size>::disconnected(const udp::endpoint& endpoint) noexcept
 {
     _pending_inputs_mutex.lock();
     _endpoints.erase(_endpoints.find(endpoint));

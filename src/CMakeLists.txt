@@ -2,7 +2,8 @@ find_package (Threads REQUIRED)
 
 set(CORE_SOURCES 
     core/coreloop.hpp
-    core/coreloop_with_network_handler.hpp
+    core/coreloop_network_plugin.hpp
+    core/coreloop_user_tick_plugin.hpp
     core/fixed_string.hpp
     database/bson_reflection_struct.hpp
     database/database.hpp
