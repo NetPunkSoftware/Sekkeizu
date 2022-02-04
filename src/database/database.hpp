@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/fixed_string.hpp"
+
 #include <pool/fiber_pool.hpp>
 #include <synchronization/mutex.hpp>
 
@@ -23,16 +25,6 @@
 #include <set>
 #include <unordered_map>
 
-
-template<unsigned N>
-struct fixed_string {
-    char buf[N + 1]{};
-    constexpr fixed_string(char const* s) {
-        for (unsigned i = 0; i != N; ++i) buf[i] = s[i];
-    }
-    constexpr operator char const*() const { return buf; }
-};
-template<unsigned N> fixed_string(char const (&)[N]) -> fixed_string<N - 1>;
 
 
 template <typename pool_traits>
@@ -66,6 +58,7 @@ public:
     inline void ensure_creation(uint8_t collection, bson_t& document, C&& callback) noexcept;
 
     mongoc_collection_t* get_collection(mongoc_database_t* database, uint8_t collection) noexcept;
+    inline const std::unordered_map<uint8_t, std::string>& get_all_collections() const noexcept;
 
 protected:
     template <typename C>
@@ -92,12 +85,12 @@ private:
     std::atomic<uint64_t> _counter;
 };
 
+
 template <typename pool_traits>
 database<pool_traits>::database(np::fiber_pool<pool_traits>* fiber_pool) noexcept :
     _fiber_pool(fiber_pool),
     _is_connected(false)
 {}
-
 
 template <typename pool_traits>
 void database<pool_traits>::init(const mongocxx::uri& uri, const std::string& database) noexcept
@@ -253,6 +246,12 @@ mongoc_collection_t* database<pool_traits>::get_collection(mongoc_database_t* da
     assert(it != _collections_map.end());
 
     return mongoc_database_get_collection(database, it->second);
+}
+
+template <typename pool_traits>
+inline const std::unordered_map<uint8_t, std::string>& database<pool_traits>::get_all_collections() const noexcept
+{
+    return _collections_map;
 }
 
 template <typename pool_traits>

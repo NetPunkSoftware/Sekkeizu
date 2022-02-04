@@ -24,4 +24,32 @@ if(NOT umi_POPULATED)
     add_subdirectory(${umi_SOURCE_DIR} ${umi_BINARY_DIR})
 endif()
 
-target_link_libraries_system(sekkeizu PUBLIC umi)
+target_link_libraries_system(sekkeizu PUBLIC umi_core_lib)
+
+
+
+####################################################################################
+# Mongo-c-driver
+set(ENABLE_SASL             "OFF" CACHE INTERNAL "")
+set(ENABLE_SSL              "OFF" CACHE INTERNAL "")
+set(ENABLE_TESTS            OFF CACHE INTERNAL "")
+set(ENABLE_EXAMPLES         OFF CACHE INTERNAL "")
+
+FetchContent_Declare(
+    mongoc
+    GIT_REPOSITORY https://github.com/mongodb/mongo-c-driver
+    GIT_TAG        5bb9926bfa649d2d271ace15f3a2620e2e2bfc42 # 1.21
+)
+
+FetchContent_GetProperties(mongoc)
+if(NOT mongoc_POPULATED)
+    FetchContent_Populate(mongoc)
+    add_subdirectory(${mongoc_SOURCE_DIR} ${mongoc_BINARY_DIR})
+endif()
+
+target_link_libraries(sekkeizu PUBLIC mongoc_static)
+
+
+
+####################################################################################
+# Mongo-c-driver -> Paths

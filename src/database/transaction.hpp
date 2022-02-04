@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/database.hpp"
+#include "database/database.hpp"
 
 #include <boost/circular_buffer.hpp>
 #include <function2/function2.hpp>
@@ -59,7 +59,7 @@ public:
     using store_t = store<transaction, entity<transaction>>;
 
 public:
-    transaction() noexcept;
+    transaction(database* database) noexcept;
 
     transaction(transaction&& other) noexcept
         _collections(std::move(other._collections)),
@@ -82,8 +82,8 @@ public:
         return *this;
     }
 
-    void construct(uint64_t execute_every);
-    bool update(uint64_t diff, store_t* store, database* database);
+    void init(database* database, uint64_t execute_every) noexcept;
+    bool update(uint64_t diff, store_t* store, database* database) noexcept;
 
     uint64_t push_operation(uint8_t collection, op_type type, bson_t& operation);
     uint64_t push_operation(uint8_t collection, op_type type, bson_t& operation_1, bson_t& operation_2);
@@ -108,7 +108,37 @@ private:
 
 
 template <uint32_t callable_size>
-bool transaction<callable_size>::update(uint64_t diff, store_t* store, database* database)
+transaction<callable_size>::collection_info::collection_info() :
+    first_id(0),
+    current_id(0)
+{}
+
+template <uint32_t callable_size>
+void transaction<callable_size>::init(database* database, uint64_t execute_every) noexcept
+{
+    // Avoid race conditions by creating now the whole set of collections now
+    for (const auto& [key, name] : database->get_all_collections())
+    {
+        _collections.emplace(key, new collection_info());
+    }
+
+    // Clear inner collections, there is no need to reallocate
+    for (auto& [id, collection] : _collections)
+    {
+        collection->first_id = 0;
+        collection->current_id = 0;
+        collection->transactions.clear();
+    }
+
+    _execute_every = execute_every;
+    _since_last_execution = 0;
+    _pending_callables = 0;
+    _flagged = false;
+    _scheduled = false;
+}
+
+template <uint32_t callable_size>
+bool transaction<callable_size>::update(uint64_t diff, store_t* store, database* database) noexcept
 {
     if (_flagged)
     {
@@ -163,8 +193,7 @@ bool transaction<callable_size>::update(uint64_t diff, store_t* store, database*
             continue;
         }
     
-        // TODO(gpascualg): Pending operations should decrease _pending_callables where appropiate
-        //  _pending_callables -= count
+        // Get any pending operation
         bool has_non_callable_transactions;
         std::vector<transaction_info*> transactions = get_pending_operations(collection, store, has_non_callable_transactions);
         auto final_id = info->first_id;
@@ -245,9 +274,9 @@ bool transaction<callable_size>::update(uint64_t diff, store_t* store, database*
             database->execute([
                 collection = collection,
                 transactions = std::move(transactions)
-            ]()
+            ](auto mongo_database)
             {
-                auto col = database::instance->get_collection(collection);
+                auto col = database->get_collection(mongo_database, collection);
 
                 for (auto t : transactions)
                 {
@@ -258,6 +287,182 @@ bool transaction<callable_size>::update(uint64_t diff, store_t* store, database*
             });
         }
     }
+
+    // All done, go
+    return true;
+}
+
+template <uint32_t callable_size>
+uint64_t transaction<callable_size>::push_operation(uint8_t collection, op_type type, bson_t& operation)
+{
+    collection_info* info = _collections[collection];
+    uint64_t slot = info->current_id++;
+    transaction_info* transaction = &info->transactions[slot];
+
+    bson_error_t error;
+    BSON_ASSERT(bson_validate_with_error(&operation, BSON_VALIDATE_NONE, &error));
+
+    transaction->dependency = std::nullopt;
+    transaction->type = type;
+    transaction->operation_op_2 = BSON_INITIALIZER;
+    transaction->callable = std::nullopt;
+    transaction->done = false;
+    transaction->pending = false;
+
+    // Copy ops
+    bson_copy_to(& operation, &transaction->operation_op_1);
+    bson_destroy(&operation);
+
+    return slot;
+}
+
+template <uint32_t callable_size>
+uint64_t transaction<callable_size>::push_operation(uint8_t collection, op_type type, bson_t& operation_1, bson_t& operation_2)
+{
+    collection_info* info = _collections[collection];
+    uint64_t slot = info->current_id++;
+    transaction_info* transaction = &info->transactions[slot];
+
+    bson_error_t error;
+    BSON_ASSERT(bson_validate_with_error(&operation_1, BSON_VALIDATE_NONE, &error));
+    BSON_ASSERT(bson_validate_with_error(&operation_2, BSON_VALIDATE_NONE, &error));
+
+    transaction->dependency = std::nullopt;
+    transaction->type = type;
+    transaction->callable = std::nullopt;
+    transaction->done = false;
+    transaction->pending = false;
+
+    // Copy ops
+    bson_copy_to(&operation_1, &transaction->operation_op_1);
+    bson_destroy(&operation_1);
+
+    // Copy ops
+    bson_copy_to(&operation_2, &transaction->operation_op_2);
+    bson_destroy(&operation_2);
+
+    return slot;
+}
+
+template <uint32_t callable_size>
+uint64_t transaction<callable_size>::push_callable(uint8_t collection, callable_t&& callable)
+{
+    collection_info* info = _collections[collection];
+    uint64_t slot = info->current_id++;
+    transaction_info* transaction = &info->transactions[slot];
+
+    transaction->dependency = std::nullopt;
+    transaction->operation_op_1 = BSON_INITIALIZER;
+    transaction->operation_op_2 = BSON_INITIALIZER;
+    transaction->callable = std::move(callable);
+    transaction->done = false;
+    transaction->pending = false;
+    ++_pending_callables;
+
+    return slot;
+}
+
+template <uint32_t callable_size>
+void transaction<callable_size>::push_dependency(uint8_t collection, uint64_t owner, uint64_t id)
+{
+    collection_info* info = _collections[collection];
+    uint64_t slot = info->current_id++;
+    transaction_info* transaction = &info->transactions[slot];
+
+    transaction->dependency = { .owner = owner, .id = id };
+    transaction->callable = std::nullopt;
+    transaction->done = false;
+    transaction->pending = false;
+}
+
+template <uint32_t callable_size>
+std::vector<transaction<callable_size>::transaction_info*> transaction<callable_size>::get_pending_operations(uint8_t collection, store_t* store, bool& has_non_callable_transactions)
+{
+    collection_info* info = _collections[collection];
+    std::vector<transaction_info*> transactions;
+    std::set<uint64_t> ids;
+
+    has_non_callable_transactions = false;
+    bool has_callable_transactions = false;
+
+    uint64_t id = info->first_id;
+    for (; id != info->current_id; ++id)
+    {
+        auto& transaction = info->transactions[id];
+
+        // This transaction has been sent and is still pending
+        if (transaction.pending)
+        {
+            break;
+        }
+
+        if (transaction.done)
+        {
+            // TODO(gpascualg): Log why should this case happen at all
+            continue;
+        }
+
+        if (transaction.dependency)
+        {
+            auto dependency = *transaction.dependency;
+            if (auto other = store->get_derived_or_null(dependency.owner))
+            {
+                if (auto info = other->get_transaction(collection, dependency.id))
+                {
+                    if (!info->done)
+                    {
+                        // Stop here if there is a dependency that has not yet completed
+                        break;
+                    }
+                }
+            }
+
+            // Otherwise, the dependency is met, contiune with the next transaction
+            continue;
+        }
+
+        // Callable transactions can only be executed if there is no pending operation
+        if (transaction.callable.has_value())
+        {
+            if (has_non_callable_transactions)
+            {
+                break;
+            }
+
+            has_callable_transactions = true;
+            --_pending_callables;
+        }
+        else
+        {
+            if (has_callable_transactions)
+            {
+                break;
+            }
+
+            has_non_callable_transactions = true;
+        }
+
+        transaction.pending = true;
+        transactions.push_back(&transaction);
+    }
+
+    info->first_id = id;
+    return transactions;
+}
+
+template <uint32_t callable_size>
+transaction<callable_size>::transaction_info* transaction<callable_size>::get_transaction(uint8_t collection, uint64_t id)
+{
+    if (auto at = _collections.find(collection); at != _collections.end())
+    {
+        auto& info = at->second;
+        if (auto it = info->transactions.find(id); it != info->transactions.end())
+        {
+            return &it->second;
+        }
+    }
+
+    return nullptr;
 }
 
 template <uint32_t callable_size>

@@ -39,21 +39,17 @@ struct core_traits
     static uint32_t database_inplace_function_size = 32;
 };
 
+
+struct network_buffer
+{
+    uint16_t size;
+    uint8_t data[500];
+};
+
+
 template <typename derived, typename traits=core_traits>
 class core_loop
 {
-    struct network_buffer
-    {
-        uint16_t size;
-        uint8_t data[500];
-    };
-
-    struct network_pending_recv
-    {
-        network_buffer* buffer;
-        udp::endpoint* endpoint;
-    };
-
 public:
     core_loop(uint16_t port, uint16_t core_threads, uint16_t network_threads, uint16_t database_threads) noexcept;
     void start() noexcept;
@@ -82,8 +78,6 @@ private:
     boost::asio::io_context _context;
     boost::asio::executor_work_guard<boost::asio::io_context::executor_type> _work;
     udp::socket _socket;
-    np::mutex _pending_recv_mutex;
-    std::vector<network_pending_recv> _pending_recvs;
 
     // Database
     np::executor<traits::database_inplace_function_size> _database_executor;
@@ -107,8 +101,6 @@ void core_loop<derived, traits>::core_loop(uint16_t port, uint16_t num_core_thre
     _context(num_network_threads),
     _work(boost::asio::make_work_guard(_context)),
     _socket(_context, udp::endpoint(udp::v4(), port)),
-    _pending_recv_mutex(),
-    _pending_recvs(),
     _database_executor(),
     _num_core_threads(num_core_threads),
     _num_network_threads(num_network_threads),
