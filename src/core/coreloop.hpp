@@ -62,6 +62,9 @@ public:
     void send_data(const udp::endpoint& endpoint, const void* buffer, uint32_t size, C&& callback) noexcept;
 
 protected:
+    // Do not destroy this class through base pointers
+    ~core_loop() noexcept = default;
+
     void handle_connections() noexcept;
     inline void release_network_buffer(network_buffer* buffer) noexcept;
     inline void release_network_endpoint(udp::endpoint* endpoint) noexcept;

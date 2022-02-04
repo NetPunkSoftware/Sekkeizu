@@ -46,6 +46,9 @@ public:
     using base_t::core_loop;
 
 protected:
+    // Do not destroy this class through base pointers
+    ~coreloop_with_network_handler() noexcept = default;
+
     void tick(const std::chrono::milliseconds& diff) noexcept;
     void handle_network_packet(udp::endpoint* endpoint, network_buffer* buffer) noexcept;
 
