@@ -2,6 +2,7 @@
 #include <palanteer.h>
 
 #include "core/coreloop_network_plugin.hpp"
+#include "core/coreloop_scheduled_tick.hpp"
 #include "core/coreloop_user_tick_plugin.hpp"
 #include "database/database.hpp"
 
@@ -9,12 +10,14 @@
 class core_loop_impl : public core_loop<
         core_traits, 
         coreloop_network_plugin<core_loop_impl, core_traits::packet_max_size>,
-        coreloop_user_tick_plugin<core_loop_impl>
-    >
+        coreloop_scheduled_tick<core_loop_impl, core_traits::base_time, 500, 0>,
+    coreloop_user_tick_plugin<core_loop_impl>
+>
 {
     using base_t = core_loop<
         core_traits,
         coreloop_network_plugin<core_loop_impl, core_traits::packet_max_size>,
+        coreloop_scheduled_tick<core_loop_impl, core_traits::base_time, 500, 0>,
         coreloop_user_tick_plugin<core_loop_impl>
     >;
 
@@ -33,6 +36,10 @@ public:
     {}
 
     void user_tick(const typename core_traits::base_time& diff)
+    {}
+
+    template <uint8_t identifier>
+    void scheduled_tick(const typename core_traits::base_time& diff)
     {}
 };
 
