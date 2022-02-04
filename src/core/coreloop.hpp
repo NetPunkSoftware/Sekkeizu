@@ -60,7 +60,7 @@ protected:
     inline void release_network_buffer(network_buffer* buffer) noexcept;
     inline void release_network_endpoint(udp::endpoint* endpoint) noexcept;
 
-private:
+protected:
     // Fiber pools
     np::fiber_pool<typename traits::core_pool_traits> _core_pool;
     np::fiber_pool<typename traits::database_pool_traits> _database_pool;

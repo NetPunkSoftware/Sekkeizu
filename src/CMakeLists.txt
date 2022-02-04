@@ -2,6 +2,7 @@ find_package (Threads REQUIRED)
 
 set(CORE_SOURCES 
     core/coreloop.hpp
+    core/coreloop_with_network_handler.hpp
     core/fixed_string.hpp
     database/bson_reflection_struct.hpp
     database/database.hpp
@@ -18,7 +19,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     target_compile_options(sekkeizu PUBLIC -stdlib=libc++)
     target_link_options(sekkeizu INTERFACE -stdlib=libc++ -lc++abi -lc++)
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-    target_compile_definitions(sekkeizu PUBLIC _UNICODE UNICODE)
+    target_compile_definitions(sekkeizu PUBLIC _UNICODE UNICODE NOMINMAX)
     target_compile_options(sekkeizu PUBLIC /MP /Zc:__cplusplus)
 endif()
 
