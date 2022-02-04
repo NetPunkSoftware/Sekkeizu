@@ -1,9 +1,7 @@
 #pragma once
 
-#include <pool/fiber_pool.hpp>
-
 #include <concurrentqueue.h>
-#include <boost/pool.hpp>
+#include <boost/pool/pool.hpp>
 
 
 template <typename T>
@@ -19,20 +17,27 @@ public:
 
     void release(T* object) noexcept;
 
+protected:
+    inline auto& get_pool() noexcept
+    {
+        //auto& pool = np::this_fiber::template threadlocal<pool_t>(sizeof(T));
+        thread_local pool_t pool(sizeof(T));
+        return pool;
+    }
+
 private:
-    moodycamel::ConcurrentQueue<T*> _free_objects;
+    moodycamel::ConcurrentQueue<void*> _free_objects;
 };
 
 
 template <typename T>
 template <typename... Args>
-T* per_thread_pool<T>::get(Args&&... args)
+T* per_thread_pool<T>::get(Args&&... args) noexcept
 {
-    T* ptr;
+    void* ptr;
     if (!_free_objects.try_dequeue(ptr))
     {
-        auto& pool = this_fiber::template threadlocal<pool_t>(sizeof(T));
-        ptr = pool.malloc();
+        ptr = get_pool().malloc();
     }
 
     auto object = new (ptr) T(std::forward<Args>(args)...);
@@ -43,5 +48,5 @@ template <typename T>
 void per_thread_pool<T>::release(T* object) noexcept
 {
     std::destroy_at(object);
-    _free_object.enqueue(object);
+    _free_objects.enqueue((void*)object);
 }

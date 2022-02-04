@@ -6,14 +6,6 @@
 #include <synchronization/mutex.hpp>
 
 #include <mongoc/mongoc.h>
-#include <mongocxx/bulk_write.hpp>
-#include <mongocxx/pool.hpp>
-#include <mongocxx/client.hpp>
-#include <mongocxx/instance.hpp>
-#include <mongocxx/uri.hpp>
-#include <bsoncxx/builder/stream/document.hpp>
-#include <bsoncxx/json.hpp>
-#include <bsoncxx/oid.hpp>
 
 #include <chacha.h>
 #include <algparam.h>
@@ -31,9 +23,11 @@ template <typename pool_traits>
 class database
 {
 public:
+    database() noexcept = default;
     database(np::fiber_pool<pool_traits>* fiber_pool) noexcept;
 
-    void init(const mongocxx::uri& uri, const std::string& database) noexcept;
+    void set_fiber_pool(np::fiber_pool<pool_traits>* fiber_pool) noexcept;
+    void init(const char* uri, const std::string& database) noexcept;
     void add_collection(uint8_t key, const std::string& collection) noexcept;
 
     template <typename F>
@@ -57,12 +51,16 @@ public:
     template <typename C>
     inline void ensure_creation(uint8_t collection, bson_t& document, C&& callback) noexcept;
 
+    inline int64_t ensure_creation_unsafe(mongoc_collection_t* collection, bson_t* document) noexcept;
+
     mongoc_collection_t* get_collection(mongoc_database_t* database, uint8_t collection) noexcept;
     inline const std::unordered_map<uint8_t, std::string>& get_all_collections() const noexcept;
 
 protected:
     template <typename C>
     void ensure_creation_impl(mongoc_collection_t* collection, bson_t* document, C&& callback) noexcept;
+
+    int64_t ensure_creation_impl(mongoc_collection_t* collection, bson_t* document) noexcept;
 
     int64_t get_potentially_unique_id() noexcept;
 
@@ -93,7 +91,13 @@ database<pool_traits>::database(np::fiber_pool<pool_traits>* fiber_pool) noexcep
 {}
 
 template <typename pool_traits>
-void database<pool_traits>::init(const mongocxx::uri& uri, const std::string& database) noexcept
+void database<pool_traits>::set_fiber_pool(np::fiber_pool<pool_traits>* fiber_pool) noexcept
+{
+    _fiber_pool = fiber_pool;
+}
+
+template <typename pool_traits>
+void database<pool_traits>::init(const char* uri, const std::string& database) noexcept
 {
     // Initialize unique id generator
     CryptoPP::AutoSeededRandomPool prng;
@@ -137,7 +141,7 @@ void database<pool_traits>::init(const mongocxx::uri& uri, const std::string& da
 }
 
 template <typename pool_traits>
-void add_collection(uint8_t key, const std::string& collection) noexcept
+void database<pool_traits>::add_collection(uint8_t key, const std::string& collection) noexcept
 {
     _collections_map.emplace(key, collection);
 }
@@ -213,8 +217,20 @@ inline void database<pool_traits>::ensure_creation(uint8_t collection, bson_t& d
 }
 
 template <typename pool_traits>
+inline int64_t database<pool_traits>::ensure_creation_unsafe(mongoc_collection_t* collection, bson_t* document) noexcept
+{
+    return ensure_creation_impl(collection, document);
+}
+
+template <typename pool_traits>
 template <typename C>
 void database<pool_traits>::ensure_creation_impl(mongoc_collection_t* collection, bson_t* document, C&& callback) noexcept
+{
+    callback(ensure_creation_impl(collection, document));
+}
+
+template <typename pool_traits>
+int64_t database<pool_traits>::ensure_creation_impl(mongoc_collection_t* collection, bson_t* document) noexcept
 {
     bson_error_t error;
 
@@ -231,8 +247,7 @@ void database<pool_traits>::ensure_creation_impl(mongoc_collection_t* collection
         {
             bson_destroy(&with_id);
             bson_destroy(document);
-            callback(id);
-            return;
+            return id;
         }
         
         bson_destroy(&with_id);

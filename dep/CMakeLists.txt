@@ -52,4 +52,32 @@ target_link_libraries(sekkeizu PUBLIC mongoc_static)
 
 
 ####################################################################################
-# Mongo-c-driver -> Paths
+# cryptopp
+set(BUILD_TESTING           OFF CACHE INTERNAL "")
+
+FetchContent_Declare(
+    cryptopp
+    GIT_REPOSITORY https://github.com/weidai11/cryptopp
+    GIT_TAG        47a6d46db7cbc436d1cc32e64a0f59e613030dec
+)
+
+FetchContent_GetProperties(cryptopp)
+if(NOT cryptopp_POPULATED)
+    FetchContent_Populate(cryptopp)
+    
+    configure_file (
+        "${CMAKE_CURRENT_SOURCE_DIR}/cryptopp.cmake"
+        ${cryptopp_SOURCE_DIR}/CMakeLists.txt
+        COPYONLY
+    )
+    
+    configure_file (
+        "${CMAKE_CURRENT_SOURCE_DIR}/cryptopp.config.cmake.in"
+        ${cryptopp_SOURCE_DIR}/cryptopp-config.cmake
+        COPYONLY
+    )
+
+    add_subdirectory(${cryptopp_SOURCE_DIR} ${cryptopp_BINARY_DIR})
+endif()
+
+target_link_libraries_system(sekkeizu PUBLIC cryptopp-static)

@@ -1,6 +1,8 @@
 #pragma once
 
+#include "database/database.hpp"
 #include "memory/per_thread_pool.hpp"
+
 #include <pool/fiber_pool.hpp>
 #include <synchronization/mutex.hpp>
 #include <ext/executor.hpp>
@@ -29,14 +31,11 @@ struct core_traits
     // Global server settings
     using clock_t = typename std::chrono::steady_clock;
     using base_time = std::chrono::milliseconds;
-    static base_time heart_beat = base_time(50);
+    static constexpr base_time heart_beat = base_time(50);
     
     // Fiber pools
     using core_pool_traits = np::detail::default_fiber_pool_traits;
     using database_pool_traits = secondary_pool_traits;
-
-    // Database
-    static uint32_t database_inplace_function_size = 32;
 };
 
 
@@ -52,7 +51,9 @@ class core_loop
 {
 public:
     core_loop(uint16_t port, uint16_t core_threads, uint16_t network_threads, uint16_t database_threads) noexcept;
-    void start() noexcept;
+
+    template <typename database_traits>
+    void start(database<database_traits>* database) noexcept;
 
 protected:
     void handle_connections() noexcept;
@@ -61,8 +62,8 @@ protected:
 
 private:
     // Fiber pools
-    np::fiber_pool<traits::core_pool_traits> _core_pool;
-    np::fiber_pool<traits::database_pool_traits> _database_pool;
+    np::fiber_pool<typename traits::core_pool_traits> _core_pool;
+    np::fiber_pool<typename traits::database_pool_traits> _database_pool;
 
     // Memory pools
     per_thread_pool<network_buffer> _data_mempool;
@@ -70,7 +71,7 @@ private:
 
     // Server attributes
     bool _running;
-    traits::clock_t::timepoint _now;
+    traits::clock_t::time_point _now;
     float _diff_mean;
     
     // Network objects
@@ -79,9 +80,6 @@ private:
     boost::asio::executor_work_guard<boost::asio::io_context::executor_type> _work;
     udp::socket _socket;
 
-    // Database
-    np::executor<traits::database_inplace_function_size> _database_executor;
-
     // Other
     uint16_t _num_core_threads;
     uint16_t _num_network_threads;
@@ -89,7 +87,7 @@ private:
 };
 
 template <typename derived, typename traits>
-void core_loop<derived, traits>::core_loop(uint16_t port, uint16_t num_core_threads, uint16_t num_network_threads, uint16_t num_database_threads) noexcept :
+core_loop<derived, traits>::core_loop(uint16_t port, uint16_t num_core_threads, uint16_t num_network_threads, uint16_t num_database_threads) noexcept :
     _core_pool(),
     _database_pool(),
     _data_mempool(),
@@ -101,30 +99,29 @@ void core_loop<derived, traits>::core_loop(uint16_t port, uint16_t num_core_thre
     _context(num_network_threads),
     _work(boost::asio::make_work_guard(_context)),
     _socket(_context, udp::endpoint(udp::v4(), port)),
-    _database_executor(),
     _num_core_threads(num_core_threads),
     _num_network_threads(num_network_threads),
     _num_database_threads(num_database_threads)
 {}
 
 template <typename derived, typename traits>
-void core_loop<derived, traits>::start() noexcept
+template <typename database_traits>
+void core_loop<derived, traits>::start(database<database_traits>* database) noexcept
 {
     // Fire up network thread
     for (int i = 0; i < _num_network_threads; ++i)
     {
-        _network_threads.push(&boost::asio::io_context::run, &_context);
+        // TODO(gpascualg): The following should work: emplace_back(&boost::asio::io_context::run, & _context)
+        _network_threads.emplace_back([this] { _context.run(); }); 
         handle_connections();
     }
 
-    // Push database executor and start the pool
-    for (int i = 0; i < _num_database_threads; ++i)
+    // Start database dedicated pool
+    if (database != nullptr)
     {
-        _database_pool.push([this] () noexcept {
-            _database_executor.start();
-        });
+        _database_pool.start(_num_database_threads, false);
+        database->set_fiber_pool(_database_pool);
     }
-    _database_pool.start(_num_database_threads, false);
 
     // Push main loop logic
     _running = true;
@@ -146,7 +143,7 @@ void core_loop<derived, traits>::start() noexcept
 
             // Sleep
             auto diff_mean = traits::base_time(static_cast<uint64_t>(std::ceil(_diff_mean)));
-            auto update_time = std::chrono::duration_cast<traits::base_time>(std_clock_t::now() - _now) + (diff_mean - traits::heart_beat);
+            auto update_time = std::chrono::duration_cast<traits::base_time>(traits::clock_t::now() - _now) + (diff_mean - traits::heart_beat);
             if (update_time < traits::heart_beat)
             {
                 auto sleep_time = traits::heart_beat - update_time;

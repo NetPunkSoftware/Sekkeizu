@@ -8,7 +8,7 @@ set(CORE_SOURCES
     database/transaction.hpp
     memory/per_thread_pool.hpp)
 
-add_library(sekkeizu STATIC ${CORE_SOURCES})
+add_library(sekkeizu OBJECT ${CORE_SOURCES})
 
 target_link_libraries(sekkeizu PUBLIC Threads::Threads)
 target_compile_features(sekkeizu PUBLIC cxx_std_20)
