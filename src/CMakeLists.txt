@@ -1,43 +1,12 @@
 find_package (Threads REQUIRED)
 
 set(CORE_SOURCES 
-    common/result_of.hpp
-    common/tao.hpp
-    common/types.hpp
-    concepts/constructable.hpp
-    concepts/destroyable.hpp
-    concepts/entity_destroyable.hpp
-    concepts/has_scheme_created.hpp
-    concepts/has_scheme_information.hpp
-    entity/components_map.hpp
-    entity/component.hpp
-    entity/scheme.hpp
-    ids/generator.hpp
-    io/memmap.hpp
-    io/memmap.cpp
-    pools/plain_pool.hpp
-    pools/singleton_pool.hpp
-    pools/thread_local_pool.hpp
-    storage/growable_storage.hpp
-    storage/partitioned_growable_storage.hpp
-    storage/partitioned_static_storage.hpp
-    storage/pool_item.hpp
-    storage/static_growable_storage.hpp
-    storage/static_storage.hpp
-    storage/storage.hpp
-    storage/ticket.hpp
-    traits/base_dic.hpp
-    traits/contains.hpp
-    traits/ctti.hpp
-    traits/has_type.hpp
-    traits/shared_function.hpp
-    traits/tuple.hpp
-    traits/without_duplicates.hpp
-    updater/core.hpp
-    updater/tasks_manager.hpp
-    updater/variant_tasks_manager.hpp
-    view/scheme_view.hpp
-    view/partial_scheme_view.hpp)
+    core/coreloop.hpp
+    core/fixed_string.hpp
+    database/bson_reflection_struct.hpp
+    database/database.hpp
+    database/transaction.hpp
+    memory/per_thread_pool.hpp)
 
 add_library(sekkeizu STATIC ${CORE_SOURCES})
 
