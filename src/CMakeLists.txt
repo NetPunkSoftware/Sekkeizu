@@ -23,6 +23,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     target_compile_definitions(sekkeizu PUBLIC _UNICODE UNICODE NOMINMAX)
     target_compile_options(sekkeizu PUBLIC /MP /Zc:__cplusplus)
+    target_link_libraries(sekkeizu PUBLIC Winmm.lib)
 endif()
 
 # EXECUTABLE

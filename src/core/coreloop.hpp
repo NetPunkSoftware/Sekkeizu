@@ -11,6 +11,11 @@
 #include <chrono>
 #include <vector>
 
+#ifdef _MSC_VER 
+    #include <timeapi.h>
+#endif // _MSC_VER 
+
+
 using udp = boost::asio::ip::udp;
 
 
@@ -39,13 +44,12 @@ struct core_traits
 
     // Network packet size
     static constexpr std::size_t packet_max_size = 500;
-};
 
-template <uint32_t packet_max_size>
-struct network_buffer
-{
-    uint16_t size;
-    uint8_t data[packet_max_size];
+    struct network_buffer
+    {
+        uint16_t size;
+        uint8_t data[500];
+    };
 };
 
 
@@ -83,7 +87,7 @@ public:
     template <typename F>
     inline void execute(F&& function, np::counter& counter) noexcept;
 
-    inline void release_network_buffer(network_buffer<traits::packet_max_size>* buffer) noexcept;
+    inline void release_network_buffer(traits::network_buffer* buffer) noexcept;
     inline void release_network_endpoint(udp::endpoint* endpoint) noexcept;
 
 protected:
@@ -94,14 +98,14 @@ protected:
 
     // NOTE(gpascualg): MSVC won't compile is directly calling plugins::tick, use this as a bypass
     inline void call_tick_proxy(const typename traits::base_time& diff) noexcept;
-    inline void call_handle_network_packet_proxy(udp::endpoint* endpoint, network_buffer<traits::packet_max_size>* buffer) noexcept;
+    inline void call_handle_network_packet_proxy(udp::endpoint* endpoint, traits::network_buffer* buffer) noexcept;
 
     // Per plugin call to check if the method is implemented in the plugin
     template <typename P>
     inline void call_tick_proxy_impl(const typename traits::base_time& diff) noexcept;
     
     template <typename P>
-    inline void call_handle_network_packet_proxy_impl(udp::endpoint* endpoint, network_buffer<traits::packet_max_size>* buffer) noexcept;
+    inline void call_handle_network_packet_proxy_impl(udp::endpoint* endpoint, traits::network_buffer* buffer) noexcept;
 
 protected:
     // Fiber pools
@@ -109,7 +113,7 @@ protected:
     np::fiber_pool<typename traits::database_pool_traits> _database_pool;
 
     // Memory pools
-    per_thread_pool<network_buffer<traits::packet_max_size>> _data_mempool;
+    per_thread_pool<typename traits::network_buffer> _data_mempool;
     per_thread_pool<udp::endpoint> _endpoints_mempool;
 
     // Server attributes
@@ -170,6 +174,10 @@ void core_loop<traits, plugins...>::start(database<database_traits>* database) n
     // Push main loop logic
     _running = true;
     _core_pool.push([this] () noexcept {
+#ifdef _MSC_VER
+        timeBeginPeriod(1);
+#endif
+
         while (_running)
         {
             // Save old tick and update time
@@ -196,6 +204,10 @@ void core_loop<traits, plugins...>::start(database<database_traits>* database) n
         }
 
         _core_pool.end();
+
+#ifdef _MSC_VER
+        timeEndPeriod(1);
+#endif
     });
 
     // Start, wait until done, and then join
@@ -271,7 +283,7 @@ void core_loop<traits, plugins...>::handle_connections() noexcept
 }
 
 template <typename traits, typename... plugins>
-inline void core_loop<traits, plugins...>::release_network_buffer(network_buffer<traits::packet_max_size>* buffer) noexcept
+inline void core_loop<traits, plugins...>::release_network_buffer(traits::network_buffer* buffer) noexcept
 {
     _data_mempool.release(buffer);
 }
@@ -289,7 +301,7 @@ inline void core_loop<traits, plugins...>::call_tick_proxy(const typename traits
 }
 
 template <typename traits, typename... plugins>
-inline void core_loop<traits, plugins...>::call_handle_network_packet_proxy(udp::endpoint* endpoint, network_buffer<traits::packet_max_size>* buffer) noexcept
+inline void core_loop<traits, plugins...>::call_handle_network_packet_proxy(udp::endpoint* endpoint, traits::network_buffer* buffer) noexcept
 {
     (..., call_handle_network_packet_proxy_impl<plugins>(endpoint, buffer));
 }
@@ -306,9 +318,9 @@ inline void core_loop<traits, plugins...>::call_tick_proxy_impl(const typename t
 
 template <typename traits, typename... plugins>
 template <typename P>
-inline void core_loop<traits, plugins...>::call_handle_network_packet_proxy_impl(udp::endpoint* endpoint, network_buffer<traits::packet_max_size>* buffer) noexcept
+inline void core_loop<traits, plugins...>::call_handle_network_packet_proxy_impl(udp::endpoint* endpoint, traits::network_buffer* buffer) noexcept
 {
-    if constexpr (plugin_has_handle_network_packet<P, core_loop<traits, plugins...>, network_buffer<traits::packet_max_size>>)
+    if constexpr (plugin_has_handle_network_packet<P, core_loop<traits, plugins...>, traits::network_buffer>)
     {
         this->P::handle_network_packet(this, endpoint, buffer);
     }

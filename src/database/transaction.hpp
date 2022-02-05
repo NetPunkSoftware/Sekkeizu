@@ -56,10 +56,7 @@ class transaction
     };
 
 public:
-    using store_t = store<transaction, entity<transaction>>;
-
-public:
-    transaction(database* database) noexcept;
+    transaction() noexcept = default;
 
     transaction(transaction&& other) noexcept
         _collections(std::move(other._collections)),
@@ -83,7 +80,9 @@ public:
     }
 
     void init(database* database, uint64_t execute_every) noexcept;
-    bool update(uint64_t diff, store_t* store, database* database) noexcept;
+
+    template <typename F>
+    bool update(uint64_t diff, database* database, F&& id_to_transaction_getter) noexcept;
 
     uint64_t push_operation(uint8_t collection, op_type type, bson_t& operation);
     uint64_t push_operation(uint8_t collection, op_type type, bson_t& operation_1, bson_t& operation_2);
@@ -94,7 +93,8 @@ public:
     inline void unflag_deletion();
 
 private:
-    std::vector<transaction_info*> get_pending_operations(uint8_t collection, store_t* store, bool& has_non_callable_transactions);
+    template <typename F>
+    std::vector<transaction_info*> get_pending_operations(uint8_t collection, F&& id_to_transaction_getter, bool& has_non_callable_transactions);
     transaction_info* get_transaction(uint8_t collection, uint64_t id);
 
 private:
@@ -138,7 +138,8 @@ void transaction<callable_size>::init(database* database, uint64_t execute_every
 }
 
 template <uint32_t callable_size>
-bool transaction<callable_size>::update(uint64_t diff, store_t* store, database* database) noexcept
+template <typename F>
+bool transaction<callable_size>::update(uint64_t diff, database* database, F&& id_to_transaction_getter) noexcept
 {
     if (_flagged)
     {
@@ -195,7 +196,7 @@ bool transaction<callable_size>::update(uint64_t diff, store_t* store, database*
     
         // Get any pending operation
         bool has_non_callable_transactions;
-        std::vector<transaction_info*> transactions = get_pending_operations(collection, store, has_non_callable_transactions);
+        std::vector<transaction_info*> transactions = get_pending_operations(collection, id_to_transaction_getter, has_non_callable_transactions);
         auto final_id = info->first_id;
         
         if (transactions.empty())
@@ -376,7 +377,8 @@ void transaction<callable_size>::push_dependency(uint8_t collection, uint64_t ow
 }
 
 template <uint32_t callable_size>
-std::vector<transaction<callable_size>::transaction_info*> transaction<callable_size>::get_pending_operations(uint8_t collection, store_t* store, bool& has_non_callable_transactions)
+template <typename F>
+std::vector<transaction<callable_size>::transaction_info*> transaction<callable_size>::get_pending_operations(uint8_t collection, F&& id_to_transaction_getter, bool& has_non_callable_transactions)
 {
     collection_info* info = _collections[collection];
     std::vector<transaction_info*> transactions;
@@ -405,7 +407,7 @@ std::vector<transaction<callable_size>::transaction_info*> transaction<callable_
         if (transaction.dependency)
         {
             auto dependency = *transaction.dependency;
-            if (auto other = store->get_derived_or_null(dependency.owner))
+            if (auto other = id_to_transaction_getter(dependency.owner))
             {
                 if (auto info = other->get_transaction(collection, dependency.id))
                 {

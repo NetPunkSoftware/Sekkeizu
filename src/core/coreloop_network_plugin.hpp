@@ -24,12 +24,10 @@ namespace std
 }
 
 
-template <typename derived, uint32_t packet_size>
+template <typename derived, typename network_buffer>
 class coreloop_network_plugin
 {
 protected:
-    using network_buffer = typename ::network_buffer<packet_size>;
-
     struct network_input_bundle
     {
         udp::endpoint* endpoint;
@@ -61,9 +59,9 @@ protected:
 };
 
 
-template <typename derived, uint32_t packet_size>
+template <typename derived, typename network_buffer>
 template <typename T>
-void coreloop_network_plugin<derived, packet_size>::tick(T* core_loop, const typename T::traits_t::base_time& diff) noexcept
+void coreloop_network_plugin<derived, network_buffer>::tick(T* core_loop, const typename T::traits_t::base_time& diff) noexcept
 {
     // First handle network packets
     if (_pending_inputs.size())
@@ -108,9 +106,9 @@ void coreloop_network_plugin<derived, packet_size>::tick(T* core_loop, const typ
     reinterpret_cast<derived*>(this)->post_network_tick(diff);
 }
 
-template <typename derived, uint32_t packet_size>
+template <typename derived, typename network_buffer>
 template <typename T>
-void coreloop_network_plugin<derived, packet_size>::handle_network_packet(T* core_loop, udp::endpoint* endpoint, network_buffer* buffer) noexcept
+void coreloop_network_plugin<derived, network_buffer>::handle_network_packet(T* core_loop, udp::endpoint* endpoint, network_buffer* buffer) noexcept
 {
     // TODO(gpascualg): Do we want this in a _network_pool, so that it doesn't hog the main pool's resources?
     core_loop->execute([this, core_loop, endpoint, buffer] {
@@ -140,8 +138,8 @@ void coreloop_network_plugin<derived, packet_size>::handle_network_packet(T* cor
     });
 }
 
-template <typename derived, uint32_t packet_size>
-void coreloop_network_plugin<derived, packet_size>::disconnected(const udp::endpoint& endpoint) noexcept
+template <typename derived, typename network_buffer>
+void coreloop_network_plugin<derived, network_buffer>::disconnected(const udp::endpoint& endpoint) noexcept
 {
     _pending_inputs_mutex.lock();
     _endpoints.erase(_endpoints.find(endpoint));

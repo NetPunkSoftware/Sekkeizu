@@ -9,14 +9,14 @@
 
 class core_loop_impl : public core_loop<
         core_traits, 
-        coreloop_network_plugin<core_loop_impl, core_traits::packet_max_size>,
+        coreloop_network_plugin<core_loop_impl, core_traits::network_buffer>,
         coreloop_scheduled_tick<core_loop_impl, core_traits::base_time, 500, 0>,
     coreloop_user_tick_plugin<core_loop_impl>
 >
 {
     using base_t = core_loop<
         core_traits,
-        coreloop_network_plugin<core_loop_impl, core_traits::packet_max_size>,
+        coreloop_network_plugin<core_loop_impl, core_traits::network_buffer>,
         coreloop_scheduled_tick<core_loop_impl, core_traits::base_time, 500, 0>,
         coreloop_user_tick_plugin<core_loop_impl>
     >;
@@ -29,7 +29,7 @@ public:
     void new_client(const udp::endpoint& endpoint)
     {}
 
-    void client_inputs(const udp::endpoint& endpoint, base_t::network_buffer* buffer)
+    void client_inputs(const udp::endpoint& endpoint, core_traits::network_buffer* buffer)
     {}
 
     void post_network_tick(const typename core_traits::base_time& diff)
