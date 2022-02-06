@@ -58,7 +58,7 @@ class transaction
 public:
     transaction() noexcept = default;
 
-    transaction(transaction&& other) noexcept
+    transaction(transaction&& other) noexcept :
         _collections(std::move(other._collections)),
         _execute_every(other._execute_every),
         _since_last_execution(other._since_last_execution),
@@ -79,10 +79,11 @@ public:
         return *this;
     }
 
-    void init(database* database, uint64_t execute_every) noexcept;
+    template <typename traits>
+    void init(database<traits>* database, uint64_t execute_every) noexcept;
 
-    template <typename F>
-    bool update(uint64_t diff, database* database, F&& id_to_transaction_getter) noexcept;
+    template <typename F, typename traits>
+    bool update(uint64_t diff, database<traits>* database, F&& id_to_transaction_getter) noexcept;
 
     uint64_t push_operation(uint8_t collection, op_type type, bson_t& operation);
     uint64_t push_operation(uint8_t collection, op_type type, bson_t& operation_1, bson_t& operation_2);
@@ -114,7 +115,8 @@ transaction<callable_size>::collection_info::collection_info() :
 {}
 
 template <uint32_t callable_size>
-void transaction<callable_size>::init(database* database, uint64_t execute_every) noexcept
+template <typename traits>
+void transaction<callable_size>::init(database<traits>* database, uint64_t execute_every) noexcept
 {
     // Avoid race conditions by creating now the whole set of collections now
     for (const auto& [key, name] : database->get_all_collections())
@@ -138,8 +140,8 @@ void transaction<callable_size>::init(database* database, uint64_t execute_every
 }
 
 template <uint32_t callable_size>
-template <typename F>
-bool transaction<callable_size>::update(uint64_t diff, database* database, F&& id_to_transaction_getter) noexcept
+template <typename F, typename traits>
+bool transaction<callable_size>::update(uint64_t diff, database<traits>* database, F&& id_to_transaction_getter) noexcept
 {
     if (_flagged)
     {
@@ -208,6 +210,7 @@ bool transaction<callable_size>::update(uint64_t diff, database* database, F&& i
         if (has_non_callable_transactions)
         {
             database->execute([
+                database,
                 collection = collection,
                 transactions = std::move(transactions)
             ](auto mongo_database)
@@ -273,6 +276,7 @@ bool transaction<callable_size>::update(uint64_t diff, database* database, F&& i
         else
         {
             database->execute([
+                database,
                 collection = collection,
                 transactions = std::move(transactions)
             ](auto mongo_database)
@@ -378,7 +382,7 @@ void transaction<callable_size>::push_dependency(uint8_t collection, uint64_t ow
 
 template <uint32_t callable_size>
 template <typename F>
-std::vector<transaction<callable_size>::transaction_info*> transaction<callable_size>::get_pending_operations(uint8_t collection, F&& id_to_transaction_getter, bool& has_non_callable_transactions)
+std::vector<typename transaction<callable_size>::transaction_info*> transaction<callable_size>::get_pending_operations(uint8_t collection, F&& id_to_transaction_getter, bool& has_non_callable_transactions)
 {
     collection_info* info = _collections[collection];
     std::vector<transaction_info*> transactions;
