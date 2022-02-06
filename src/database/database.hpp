@@ -87,7 +87,16 @@ private:
 template <typename pool_traits>
 database<pool_traits>::database(np::fiber_pool<pool_traits>* fiber_pool) noexcept :
     _fiber_pool(fiber_pool),
-    _is_connected(false)
+    _uri(nullptr),
+    _pool(nullptr),
+    _database(),
+    _is_connected(false),
+    _collections_map(),
+    _mutex(),
+    _key(32),
+    _iv(8),
+    _enc(),
+    _counter()
 {}
 
 template <typename pool_traits>
