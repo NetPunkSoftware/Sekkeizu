@@ -114,7 +114,7 @@ void database<pool_traits>::init(const char* uri, const std::string& database) n
 
     // Check uri
     bson_error_t error;
-    _uri = mongoc_uri_new_with_error(uri.to_string().c_str(), &error);
+    _uri = mongoc_uri_new_with_error(uri, &error);
     if (!_uri) 
     {
         _is_connected = false;
@@ -150,7 +150,7 @@ template <typename pool_traits>
 template <typename F>
 void database<pool_traits>::execute(F&& function) noexcept
 {
-    _fiber_pool->push([this, function = std::forward<F>(function)]() {
+    _fiber_pool->push([this, function = std::forward<F>(function)]() mutable {
         auto client = mongoc_client_pool_pop(_pool);
         auto database = mongoc_client_get_database(client, _database.c_str());
         function(database);
@@ -260,7 +260,7 @@ mongoc_collection_t* database<pool_traits>::get_collection(mongoc_database_t* da
     auto it = _collections_map.find(collection);
     assert(it != _collections_map.end());
 
-    return mongoc_database_get_collection(database, it->second);
+    return mongoc_database_get_collection(database, it->second.c_str());
 }
 
 template <typename pool_traits>
