@@ -93,10 +93,7 @@ void coreloop_network_plugin<derived, network_buffer>::tick(T* core_loop, const 
         for (auto& [endpoint, buffers] : pending_inputs)
         {
             core_loop->execute([this, &endpoint, &buffers] {
-                for (auto& buffer : buffers)
-                {
-                    reinterpret_cast<derived*>(this)->client_inputs(endpoint, buffer);
-                }
+                reinterpret_cast<derived*>(this)->client_inputs(endpoint, buffers);
             }, _inputs_counter);
         }
         _inputs_counter.wait();

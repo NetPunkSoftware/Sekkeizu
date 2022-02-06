@@ -29,7 +29,7 @@ public:
     void new_client(const udp::endpoint& endpoint)
     {}
 
-    void client_inputs(const udp::endpoint& endpoint, core_traits::network_buffer* buffer)
+    void client_inputs(const udp::endpoint& endpoint, std::vector<core_traits::network_buffer*> buffer)
     {}
 
     void post_network_tick(const typename core_traits::base_time& diff)

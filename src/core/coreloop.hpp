@@ -90,6 +90,8 @@ public:
     inline void release_network_buffer(traits::network_buffer* buffer) noexcept;
     inline void release_network_endpoint(udp::endpoint* endpoint) noexcept;
 
+    inline constexpr bool is_running() const;
+
 protected:
     // Do not destroy this class through base pointers
     ~core_loop() noexcept = default;
@@ -324,4 +326,10 @@ inline void core_loop<traits, plugins...>::call_handle_network_packet_proxy_impl
     {
         this->P::handle_network_packet(this, endpoint, buffer);
     }
+}
+
+template <typename traits, typename... plugins>
+inline constexpr bool core_loop<traits, plugins...>::is_running() const
+{
+    return _running;
 }
