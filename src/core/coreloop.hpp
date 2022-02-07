@@ -53,10 +53,22 @@ struct core_traits
 };
 
 
+template <typename P, typename T>
+concept plugin_has_pre_tick = requires (P plugin, T* core)
+{
+    { plugin.pre_tick(core) };
+};
+
 template <typename P, typename T, typename base_time>
 concept plugin_has_tick = requires (P plugin, T* core, const base_time& diff)
 {
     { plugin.tick(core, diff) };
+};
+
+template <typename P, typename T>
+concept plugin_has_post_tick = requires (P plugin, T* core)
+{
+    { plugin.post_tick(core) };
 };
 
 template <typename P, typename T, typename Buff>
@@ -99,12 +111,20 @@ protected:
     void handle_connections() noexcept;
 
     // NOTE(gpascualg): MSVC won't compile is directly calling plugins::tick, use this as a bypass
+    inline void call_pre_tick_proxy() noexcept;
     inline void call_tick_proxy(const typename traits::base_time& diff) noexcept;
+    inline void call_post_tick_proxy() noexcept;
     inline void call_handle_network_packet_proxy(udp::endpoint* endpoint, traits::network_buffer* buffer) noexcept;
 
     // Per plugin call to check if the method is implemented in the plugin
     template <typename P>
+    inline void call_pre_tick_proxy_impl() noexcept;
+
+    template <typename P>
     inline void call_tick_proxy_impl(const typename traits::base_time& diff) noexcept;
+
+    template <typename P>
+    inline void call_post_tick_proxy_impl() noexcept;
     
     template <typename P>
     inline void call_handle_network_packet_proxy_impl(udp::endpoint* endpoint, traits::network_buffer* buffer) noexcept;
@@ -185,6 +205,7 @@ void core_loop<traits, plugins...>::start(database<database_traits>* database) n
             // Save old tick and update time
             auto last_tick = _now;
             _now = traits::clock_t::now();
+            call_pre_tick_proxy();
 
             // Compute time diff
             auto diff = std::chrono::duration_cast<traits::base_time>(_now - last_tick);
@@ -203,6 +224,8 @@ void core_loop<traits, plugins...>::start(database<database_traits>* database) n
                 // This is lost time which could be invested in other tasks
                 std::this_thread::sleep_for(sleep_time);
             }
+
+            call_post_tick_proxy();
         }
 
         _core_pool.end();
@@ -297,9 +320,21 @@ inline void core_loop<traits, plugins...>::release_network_endpoint(udp::endpoin
 }
 
 template <typename traits, typename... plugins>
+inline void core_loop<traits, plugins...>::call_pre_tick_proxy() noexcept
+{
+    (..., call_pre_tick_proxy_impl<plugins>());
+}
+
+template <typename traits, typename... plugins>
 inline void core_loop<traits, plugins...>::call_tick_proxy(const typename traits::base_time& diff) noexcept
 {
     (..., call_tick_proxy_impl<plugins>(diff));
+}
+
+template <typename traits, typename... plugins>
+inline void core_loop<traits, plugins...>::call_post_tick_proxy() noexcept
+{
+    (..., call_post_tick_proxy_impl<plugins>());
 }
 
 template <typename traits, typename... plugins>
@@ -310,11 +345,31 @@ inline void core_loop<traits, plugins...>::call_handle_network_packet_proxy(udp:
 
 template <typename traits, typename... plugins>
 template <typename P>
+inline void core_loop<traits, plugins...>::call_pre_tick_proxy_impl() noexcept
+{
+    if constexpr (plugin_has_pre_tick<P, core_loop<traits, plugins...>>)
+    {
+        this->P::pre_tick(this);
+    }
+}
+
+template <typename traits, typename... plugins>
+template <typename P>
 inline void core_loop<traits, plugins...>::call_tick_proxy_impl(const typename traits::base_time& diff) noexcept
 {
     if constexpr (plugin_has_tick<P, core_loop<traits, plugins...>, typename traits::base_time>)
     {
         this->P::tick(this, diff);
+    }
+}
+
+template <typename traits, typename... plugins>
+template <typename P>
+inline void core_loop<traits, plugins...>::call_post_tick_proxy_impl() noexcept
+{
+    if constexpr (plugin_has_post_tick<P, core_loop<traits, plugins...>>)
+    {
+        this->P::post_tick(this);
     }
 }
 

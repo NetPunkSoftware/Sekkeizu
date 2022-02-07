@@ -3,6 +3,7 @@ find_package (Threads REQUIRED)
 set(CORE_SOURCES 
     core/coreloop.hpp
     core/coreloop_network_plugin.hpp
+    core/coreloop_palanteer_tick_time.hpp
     core/coreloop_scheduled_tick.hpp
     core/coreloop_user_tick_plugin.hpp
     core/fixed_string.hpp
