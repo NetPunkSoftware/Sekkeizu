@@ -208,15 +208,15 @@ void core_loop<traits, plugins...>::start(database<database_traits>* database) n
             call_pre_tick_proxy();
 
             // Compute time diff
-            auto diff = std::chrono::duration_cast<traits::base_time>(_now - last_tick);
+            auto diff = std::chrono::duration_cast<typename traits::base_time>(_now - last_tick);
             _diff_mean = 0.95f * _diff_mean + 0.05f * diff.count();
 
             // Execute plugins main ticks
             call_tick_proxy(diff);
 
             // Sleep
-            auto diff_mean = traits::base_time(static_cast<uint64_t>(std::ceil(_diff_mean)));
-            auto update_time = std::chrono::duration_cast<traits::base_time>(traits::clock_t::now() - _now) + (diff_mean - traits::heart_beat);
+            auto diff_mean = typename traits::base_time(static_cast<uint64_t>(std::ceil(_diff_mean)));
+            auto update_time = std::chrono::duration_cast<typename traits::base_time>(traits::clock_t::now() - _now) + (diff_mean - traits::heart_beat);
             if (update_time < traits::heart_beat)
             {
                 auto sleep_time = traits::heart_beat - update_time;
@@ -377,7 +377,7 @@ template <typename traits, typename... plugins>
 template <typename P>
 inline void core_loop<traits, plugins...>::call_handle_network_packet_proxy_impl(udp::endpoint* endpoint, traits::network_buffer* buffer) noexcept
 {
-    if constexpr (plugin_has_handle_network_packet<P, core_loop<traits, plugins...>, traits::network_buffer>)
+    if constexpr (plugin_has_handle_network_packet<P, core_loop<traits, plugins...>, typename traits::network_buffer>)
     {
         this->P::handle_network_packet(this, endpoint, buffer);
     }
