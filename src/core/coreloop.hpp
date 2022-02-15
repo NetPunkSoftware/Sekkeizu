@@ -99,7 +99,7 @@ public:
     template <typename F>
     inline void execute(F&& function, np::counter& counter) noexcept;
 
-    inline void release_network_buffer(traits::network_buffer* buffer) noexcept;
+    inline void release_network_buffer(typename traits::network_buffer* buffer) noexcept;
     inline void release_network_endpoint(udp::endpoint* endpoint) noexcept;
 
     inline constexpr bool is_running() const;
@@ -114,7 +114,7 @@ protected:
     inline void call_pre_tick_proxy() noexcept;
     inline void call_tick_proxy(const typename traits::base_time& diff) noexcept;
     inline void call_post_tick_proxy() noexcept;
-    inline void call_handle_network_packet_proxy(udp::endpoint* endpoint, traits::network_buffer* buffer) noexcept;
+    inline void call_handle_network_packet_proxy(udp::endpoint* endpoint, typename traits::network_buffer* buffer) noexcept;
 
     // Per plugin call to check if the method is implemented in the plugin
     template <typename P>
@@ -127,7 +127,7 @@ protected:
     inline void call_post_tick_proxy_impl() noexcept;
     
     template <typename P>
-    inline void call_handle_network_packet_proxy_impl(udp::endpoint* endpoint, traits::network_buffer* buffer) noexcept;
+    inline void call_handle_network_packet_proxy_impl(udp::endpoint* endpoint, typename traits::network_buffer* buffer) noexcept;
 
 protected:
     // Fiber pools
@@ -140,7 +140,7 @@ protected:
 
     // Server attributes
     bool _running;
-    traits::clock_t::time_point _now;
+    typename traits::clock_t::time_point _now;
     float _diff_mean;
     
     // Network objects
@@ -308,7 +308,7 @@ void core_loop<traits, plugins...>::handle_connections() noexcept
 }
 
 template <typename traits, typename... plugins>
-inline void core_loop<traits, plugins...>::release_network_buffer(traits::network_buffer* buffer) noexcept
+inline void core_loop<traits, plugins...>::release_network_buffer(typename traits::network_buffer* buffer) noexcept
 {
     _data_mempool.release(buffer);
 }
@@ -338,7 +338,7 @@ inline void core_loop<traits, plugins...>::call_post_tick_proxy() noexcept
 }
 
 template <typename traits, typename... plugins>
-inline void core_loop<traits, plugins...>::call_handle_network_packet_proxy(udp::endpoint* endpoint, traits::network_buffer* buffer) noexcept
+inline void core_loop<traits, plugins...>::call_handle_network_packet_proxy(udp::endpoint* endpoint, typename traits::network_buffer* buffer) noexcept
 {
     (..., call_handle_network_packet_proxy_impl<plugins>(endpoint, buffer));
 }
@@ -375,7 +375,7 @@ inline void core_loop<traits, plugins...>::call_post_tick_proxy_impl() noexcept
 
 template <typename traits, typename... plugins>
 template <typename P>
-inline void core_loop<traits, plugins...>::call_handle_network_packet_proxy_impl(udp::endpoint* endpoint, traits::network_buffer* buffer) noexcept
+inline void core_loop<traits, plugins...>::call_handle_network_packet_proxy_impl(udp::endpoint* endpoint, typename traits::network_buffer* buffer) noexcept
 {
     if constexpr (plugin_has_handle_network_packet<P, core_loop<traits, plugins...>, typename traits::network_buffer>)
     {

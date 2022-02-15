@@ -457,7 +457,7 @@ std::vector<typename transaction<callable_size>::transaction_info*> transaction<
 }
 
 template <uint32_t callable_size>
-transaction<callable_size>::transaction_info* transaction<callable_size>::get_transaction(uint8_t collection, uint64_t id)
+typename transaction<callable_size>::transaction_info* transaction<callable_size>::get_transaction(uint8_t collection, uint64_t id)
 {
     if (auto at = _collections.find(collection); at != _collections.end())
     {
