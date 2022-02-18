@@ -570,6 +570,9 @@ if (MSVC AND NOT DISABLE_ASM)
     endif ()
     set_source_files_properties(${cryptopp_SOURCES_ASM} PROPERTIES LANGUAGE ASM_MASM)
   endif ()
+elseif (WIN32 AND CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND NOT DISABLE_ASM)
+  message(WARNING "Currently, using clang in windows triggers DISABLE_ASM")
+  set(DISABLE_ASM ON)
 endif ()
 
 #============================================================================
