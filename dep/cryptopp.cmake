@@ -570,6 +570,61 @@ if (MSVC AND NOT DISABLE_ASM)
     endif ()
     set_source_files_properties(${cryptopp_SOURCES_ASM} PROPERTIES LANGUAGE ASM_MASM)
   endif ()
+elseif (WIN32 AND CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND NOT DISABLE_ASM)
+  message(WARNING "Currently, using clang in windows triggers DISABLE_ASM")
+  set(DISABLE_ASM ON)
+  list(APPEND CRYPTOPP_COMPILE_DEFINITIONS CRYPTOPP_DISABLE_ASM)
+
+  # enable_language(ASM_MASM)
+  # set(_pf_x86 "ProgramFiles(x86)")
+  # file(TO_CMAKE_PATH "$ENV{${_pf_x86}}" _pf_x86_final)
+  # execute_process(
+  #   COMMAND "${_pf_x86_final}/Microsoft Visual Studio/Installer/vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -prerelease -property installationPath
+  #   OUTPUT_VARIABLE _vs_install_loc_out
+  #   RESULT_VARIABLE _vs_where_exitcode
+  #   OUTPUT_STRIP_TRAILING_WHITESPACE
+  # )
+  # file(TO_CMAKE_PATH "${_vs_install_loc_out}" _vs_install_loc)
+  #
+  # # Get version number
+  # file (STRINGS "${_vs_install_loc}/VC/Auxiliary/Build/Microsoft.VCToolsVersion.default.txt" VC_VERSION_NUMBER)
+  # set(VC_TOOLS_BIN "${_vs_install_loc}/VC/Tools/MSVC/${VC_VERSION_NUMBER}/bin/HostX64/x64/")
+  #
+  # # Get path to ml64 
+  # FIND_PROGRAM(CMAKE_ASM_MASM_COMPILER_CUSTOM
+  #            NAMES ml64
+  #            PATHS ${VC_TOOLS_BIN} DOC "Assembler")
+  # message("-- MASM Compiler: ${CMAKE_ASM_MASM_COMPILER_CUSTOM}")
+  # set(CMAKE_ASM_MASM_COMPILER ${CMAKE_ASM_MASM_COMPILER_CUSTOM} CACHE INTERNAL "ASM_MASM")
+  #
+  # # Additional includes
+  # get_filename_component(windows_kits_dir "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows Kits\\Installed Roots;KitsRoot10]" ABSOLUTE)
+  # FILE(GLOB windows_kits_version RELATIVE ${windows_kits_dir}/Include ${windows_kits_dir}/Include/*)
+  # message("-- Windows Kits: ${windows_kits_dir}/Include/${windows_kits_version}/shared")
+  # # include_directories(${windows_kits_dir}/Include/${windows_kits_version}/shared)
+  #
+  # # Build MASM
+  # list(APPEND cryptopp_SOURCES_ASM
+  #   ${SRC_DIR}/rdrand.asm
+  #   ${SRC_DIR}/rdseed.asm
+  #   )
+  # if (CMAKE_SIZEOF_VOID_P EQUAL 8)
+  #   list(APPEND cryptopp_SOURCES_ASM
+  #     ${SRC_DIR}/x64dll.asm
+  #     ${SRC_DIR}/x64masm.asm
+  #     )
+  #   set_source_files_properties(${cryptopp_SOURCES_ASM} PROPERTIES COMPILE_DEFINITIONS "_M_X64" COMPILE_FLAGS "-I\"${windows_kits_dir}/Include/${windows_kits_version}/shared\"")
+  # else ()
+  #   set_source_files_properties(${cryptopp_SOURCES_ASM} PROPERTIES COMPILE_DEFINITIONS "_M_X86" COMPILE_FLAGS "/safeseh" COMPILE_FLAGS "-I\"${windows_kits_dir}/Include/${windows_kits_version}/shared\"")
+  # endif ()
+  # set_source_files_properties(${cryptopp_SOURCES_ASM} PROPERTIES LANGUAGE ASM_MASM COMPILE_FLAGS "-I\"${windows_kits_dir}/Include/${windows_kits_version}/shared\"")
+  #
+  # # Build Rijndael
+  # message("-- Added rijndael.cpp")
+  # set(cryptopp_SOURCES
+  #   ${SRC_DIR}/rijndael.cpp
+  #   ${cryptopp_SOURCES}
+  # )
 endif ()
 
 #============================================================================
