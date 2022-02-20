@@ -1,6 +1,10 @@
 include(FetchContent)
 
 
+# Require Git for mongoc patches
+find_package(Git REQUIRED)
+
+
 
 ####################################################################################
 # Boost
@@ -39,6 +43,7 @@ FetchContent_Declare(
     mongoc
     GIT_REPOSITORY https://github.com/mongodb/mongo-c-driver
     GIT_TAG        5bb9926bfa649d2d271ace15f3a2620e2e2bfc42 # 1.21
+    PATCH_COMMAND  ${GIT_EXECUTABLE} apply --whitespace=fix ${CMAKE_CURRENT_SOURCE_DIR}/mongoc-win32-clang.patch
 )
 
 FetchContent_GetProperties(mongoc)
