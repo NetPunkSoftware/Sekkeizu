@@ -159,7 +159,11 @@ void coreloop_network_plugin<derived, network_buffer, max_concurrent_threads>::t
             // Clear locals, unlock
             for (uint8_t i = 0; i < max_concurrent_threads; ++i)
             {
-                _local_endpoints[i].erase(_local_endpoints[i].find(endpoint));
+                // This thread might not have the endpoint locally stored, that is fine
+                if (auto it = _local_endpoints[i].find(endpoint); it != _local_endpoints[i].end())
+                {
+                    _local_endpoints[i].erase(it);
+                }
                 _local_mutex[i].unlock();
             }
 
