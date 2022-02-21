@@ -72,9 +72,9 @@ concept plugin_has_post_tick = requires (P plugin, T* core)
 };
 
 template <typename P, typename T, typename Buff>
-concept plugin_has_handle_network_packet = requires (P plugin, T* core, udp::endpoint* endpoint, Buff* buffer)
+concept plugin_has_handle_network_packet = requires (P plugin, T* core, uint8_t unique_id, udp::endpoint* endpoint, Buff* buffer)
 {
-    { plugin.handle_network_packet(core, endpoint, buffer) };
+    { plugin.handle_network_packet(core, unique_id, endpoint, buffer) };
 };
 
 
@@ -108,13 +108,13 @@ protected:
     // Do not destroy this class through base pointers
     ~core_loop() noexcept = default;
 
-    void handle_connections() noexcept;
+    void handle_connections(uint8_t unique_id) noexcept;
 
     // NOTE(gpascualg): MSVC won't compile is directly calling plugins::tick, use this as a bypass
     inline void call_pre_tick_proxy() noexcept;
     inline void call_tick_proxy(const typename traits::base_time& diff) noexcept;
     inline void call_post_tick_proxy() noexcept;
-    inline void call_handle_network_packet_proxy(udp::endpoint* endpoint, typename traits::network_buffer* buffer) noexcept;
+    inline void call_handle_network_packet_proxy(uint8_t unique_id, udp::endpoint* endpoint, typename traits::network_buffer* buffer) noexcept;
 
     // Per plugin call to check if the method is implemented in the plugin
     template <typename P>
@@ -127,7 +127,7 @@ protected:
     inline void call_post_tick_proxy_impl() noexcept;
     
     template <typename P>
-    inline void call_handle_network_packet_proxy_impl(udp::endpoint* endpoint, typename traits::network_buffer* buffer) noexcept;
+    inline void call_handle_network_packet_proxy_impl(uint8_t unique_id, udp::endpoint* endpoint, typename traits::network_buffer* buffer) noexcept;
 
 protected:
     // Fiber pools
@@ -183,7 +183,7 @@ void core_loop<traits, plugins...>::start(database<database_traits>* database) n
     {
         // TODO(gpascualg): The following should work: emplace_back(&boost::asio::io_context::run, & _context)
         _network_threads.emplace_back([this] { _context.run(); }); 
-        handle_connections();
+        handle_connections(i);
     }
 
     // Start database dedicated pool
@@ -279,13 +279,13 @@ inline void core_loop<traits, plugins...>::execute(F&& function, np::counter& co
 }
 
 template <typename traits, typename... plugins>
-void core_loop<traits, plugins...>::handle_connections() noexcept
+void core_loop<traits, plugins...>::handle_connections(uint8_t unique_id) noexcept
 {
     // Get a new buffer
     auto buffer = _data_mempool.get();
     auto endpoint = _endpoints_mempool.get();
 
-    _socket.async_receive_from(boost::asio::buffer(buffer->data, traits::packet_max_size), *endpoint, 0, [this, buffer, endpoint](const auto& error, std::size_t bytes) noexcept {
+    _socket.async_receive_from(boost::asio::buffer(buffer->data, traits::packet_max_size), *endpoint, 0, [this, buffer, endpoint, unique_id](const auto& error, std::size_t bytes) noexcept {
         // std::cout << "Incoming packet from " << *endpoint << " [" << bytes << "b, " << static_cast<bool>(error) << "]" << std::endl;
 
         if (error)
@@ -299,11 +299,11 @@ void core_loop<traits, plugins...>::handle_connections() noexcept
             buffer->size = bytes;
             
             // Let plugins handle the packet
-            call_handle_network_packet_proxy(endpoint, buffer);
+            call_handle_network_packet_proxy(unique_id, endpoint, buffer);
         }
 
         // Handle again
-        handle_connections();
+        handle_connections(unique_id);
     });
 }
 
@@ -338,9 +338,9 @@ inline void core_loop<traits, plugins...>::call_post_tick_proxy() noexcept
 }
 
 template <typename traits, typename... plugins>
-inline void core_loop<traits, plugins...>::call_handle_network_packet_proxy(udp::endpoint* endpoint, typename traits::network_buffer* buffer) noexcept
+inline void core_loop<traits, plugins...>::call_handle_network_packet_proxy(uint8_t unique_id, udp::endpoint* endpoint, typename traits::network_buffer* buffer) noexcept
 {
-    (..., call_handle_network_packet_proxy_impl<plugins>(endpoint, buffer));
+    (..., call_handle_network_packet_proxy_impl<plugins>(unique_id, endpoint, buffer));
 }
 
 template <typename traits, typename... plugins>
@@ -375,11 +375,11 @@ inline void core_loop<traits, plugins...>::call_post_tick_proxy_impl() noexcept
 
 template <typename traits, typename... plugins>
 template <typename P>
-inline void core_loop<traits, plugins...>::call_handle_network_packet_proxy_impl(udp::endpoint* endpoint, typename traits::network_buffer* buffer) noexcept
+inline void core_loop<traits, plugins...>::call_handle_network_packet_proxy_impl(uint8_t unique_id, udp::endpoint* endpoint, typename traits::network_buffer* buffer) noexcept
 {
     if constexpr (plugin_has_handle_network_packet<P, core_loop<traits, plugins...>, typename traits::network_buffer>)
     {
-        this->P::handle_network_packet(this, endpoint, buffer);
+        this->P::handle_network_packet(this, unique_id, endpoint, buffer);
     }
 }
 
