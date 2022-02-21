@@ -161,9 +161,12 @@ void coreloop_network_plugin<derived, network_buffer, max_concurrent_threads>::t
                 _local_mutex[i].lock();
             }
 
+
             // Lock shared, clear endpoint
             _shared_mutex.lock();
-            _endpoints.erase(_endpoints.find(endpoint));
+            auto it = _endpoints.find(endpoint);
+            assert(it != _endpoints.end());
+            _endpoints.erase(it);
             _shared_mutex.unlock();
 
             // Clear locals, unlock
@@ -182,6 +185,7 @@ void coreloop_network_plugin<derived, network_buffer, max_concurrent_threads>::t
             reinterpret_cast<derived*>(this)->on_disconnected(endpoint);
         }
 
+        _pending_disconnects.clear();
         _disconnect_mutex.unlock();
     }
 }
@@ -209,6 +213,7 @@ void coreloop_network_plugin<derived, network_buffer, max_concurrent_threads>::h
             _shared_mutex.unlock();
 
             // Add to _pending_inputs
+            local_endpoints.insert(*endpoint);
             pending_inputs.emplace(*endpoint, std::vector<network_buffer*>{});
         }
      
