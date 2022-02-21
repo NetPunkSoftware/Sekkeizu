@@ -122,9 +122,11 @@ void coreloop_network_plugin<derived, network_buffer, max_concurrent_threads>::t
             {
                 it->second.push_back(buffer);
             }
+
+            // Clear all pending_buffers
+            pending_buffers.clear();
         }
 
-        _pending_inputs[idx].clear();
         _local_mutex[idx].unlock();
     }
 
@@ -148,8 +150,11 @@ void coreloop_network_plugin<derived, network_buffer, max_concurrent_threads>::t
     {
         _disconnect_mutex.lock();
 
-        for (auto& endpoint : _pending_disconnects)
+        for (const auto& endpoint : _pending_disconnects)
         {
+            // Clear endpoint data
+            _endpoint_data.erase(endpoint);
+
             // Lock all locals
             for (uint8_t i = 0; i < max_concurrent_threads; ++i)
             {
@@ -168,6 +173,7 @@ void coreloop_network_plugin<derived, network_buffer, max_concurrent_threads>::t
                 if (auto it = _local_endpoints[i].find(endpoint); it != _local_endpoints[i].end())
                 {
                     _local_endpoints[i].erase(it);
+                    _pending_inputs[i].erase(endpoint);
                 }
                 _local_mutex[i].unlock();
             }
@@ -191,6 +197,7 @@ void coreloop_network_plugin<derived, network_buffer, max_concurrent_threads>::h
         auto& local_endpoints = _local_endpoints[unique_id];
         
         _local_mutex[unique_id].lock();
+        auto& pending_inputs = _pending_inputs[unique_id];
         if (local_endpoints.find(*endpoint) == local_endpoints.end())
         {
             _shared_mutex.lock();
@@ -200,18 +207,15 @@ void coreloop_network_plugin<derived, network_buffer, max_concurrent_threads>::h
                 _new_endpoints.insert(*endpoint);
             }
             _shared_mutex.unlock();
+
+            // Add to _pending_inputs
+            pending_inputs.emplace(*endpoint, std::vector<network_buffer*>{});
         }
      
         // Add to client pending inputs
-        auto& pending_inputs = _pending_inputs[unique_id];
-        if (auto it = pending_inputs.find(*endpoint); it != pending_inputs.end())
-        {
-            it->second.push_back(buffer);
-        }
-        else
-        {
-            pending_inputs.emplace(*endpoint, std::vector<network_buffer*>{ buffer });
-        }
+        auto it = pending_inputs.find(*endpoint); 
+        assert(it != pending_inputs.end() && "Client should be already added during local map");
+        it->second.push_back(buffer);
 
         _local_mutex[unique_id].unlock();
 
