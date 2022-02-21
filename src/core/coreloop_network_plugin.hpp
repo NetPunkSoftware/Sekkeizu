@@ -44,7 +44,7 @@ public:
     template <typename T>
     void handle_network_packet(T* core_loop, uint8_t unique_id, udp::endpoint* endpoint, network_buffer* buffer) noexcept;
 
-    void disconnected(const udp::endpoint& endpoint) noexcept;
+    void disconnect(const udp::endpoint& endpoint) noexcept;
 
 protected:
     // Do not destroy this class through base pointers
@@ -162,6 +162,9 @@ void coreloop_network_plugin<derived, network_buffer, max_concurrent_threads>::t
                 _local_endpoints[i].erase(_local_endpoints[i].find(endpoint));
                 _local_mutex[i].unlock();
             }
+
+            // Callback
+            reinterpret_cast<derived*>(this)->on_disconnected(endpoint);
         }
 
         _disconnect_mutex.unlock();
@@ -209,7 +212,7 @@ void coreloop_network_plugin<derived, network_buffer, max_concurrent_threads>::h
 }
 
 template <typename derived, typename network_buffer, uint8_t max_concurrent_threads>
-void coreloop_network_plugin<derived, network_buffer, max_concurrent_threads>::disconnected(const udp::endpoint& endpoint) noexcept
+void coreloop_network_plugin<derived, network_buffer, max_concurrent_threads>::disconnect(const udp::endpoint& endpoint) noexcept
 {
     _disconnect_mutex.lock();
     _pending_disconnects.push_back(endpoint);
