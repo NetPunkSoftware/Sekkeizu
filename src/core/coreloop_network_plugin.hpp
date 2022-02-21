@@ -106,6 +106,11 @@ void coreloop_network_plugin<derived, network_buffer, max_concurrent_threads>::t
     // Accumulate any pending inputs
     for (uint8_t idx = 0; idx < max_concurrent_threads; ++idx)
     {
+        if (_pending_inputs[idx].empty())
+        {
+            continue;
+        }
+
         // Lock local, add to local data
         _local_mutex[idx].lock();
 
