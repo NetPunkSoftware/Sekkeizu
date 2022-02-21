@@ -1,4 +1,4 @@
-﻿diff --git a/src/libbson/src/bson/bson-atomic.c b/src/libbson/src/bson/bson-atomic.c
+diff --git a/src/libbson/src/bson/bson-atomic.c b/src/libbson/src/bson/bson-atomic.c
 index 0531c9fbb..ae6ac8c5b 100644
 --- a/src/libbson/src/bson/bson-atomic.c
 +++ b/src/libbson/src/bson/bson-atomic.c
