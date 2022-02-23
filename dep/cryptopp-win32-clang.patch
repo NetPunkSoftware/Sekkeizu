@@ -1,0 +1,35 @@
+diff --git a/config_cxx.h b/config_cxx.h
+index 95093de7..c86d3d9c 100644
+--- a/config_cxx.h
++++ b/config_cxx.h
+@@ -214,7 +214,7 @@
+ // Also see https://github.com/weidai11/cryptopp/issues/980. I'm not sure what
+ // to do when the compiler defines __cpp_lib_uncaught_exceptions but the platform
+ // does not support std::uncaught_exceptions. What was Apple thinking???
+-#if defined(__clang__)
++#if defined(__clang__) && !defined(_MSC_VER)
+ # if __EXCEPTIONS && __has_feature(cxx_exceptions)
+ #  if __cpp_lib_uncaught_exceptions >= 201411L
+ #   define CRYPTOPP_CXX17_UNCAUGHT_EXCEPTIONS 1
+@@ -223,6 +223,8 @@
+ #elif (CRYPTOPP_MSC_VERSION >= 1900) || (__INTEL_COMPILER >= 1800) || \
+       (CRYPTOPP_GCC_VERSION >= 60000) || (__cpp_lib_uncaught_exceptions >= 201411L)
+ # define CRYPTOPP_CXX17_UNCAUGHT_EXCEPTIONS 1
++#elif defined(__clang__) && __EXCEPTIONS && __has_feature(cxx_exceptions)
++# define CRYPTOPP_CXX17_UNCAUGHT_EXCEPTIONS 1
+ #endif // uncaught_exceptions compilers
+ 
+ #endif  // CRYPTOPP_CXX17
+diff --git a/config_os.h b/config_os.h
+index 107e4452..288f685d 100644
+--- a/config_os.h
++++ b/config_os.h
+@@ -29,7 +29,7 @@
+ // https://www.cryptopp.com/wiki/Release_Process#Self_Tests
+ // The problems with Clang pretending to be other compilers is
+ // discussed at http://github.com/weidai11/cryptopp/issues/147.
+-#if (defined(_MSC_VER) && defined(__clang__) && \
++#if (defined(_MSC_VER) && _MSC_VER < 1930 && defined(__clang__) && \
+    !(defined( __clang_analyzer__)) && !defined(__INTEL_LLVM_COMPILER))
+ # error: "Unsupported configuration"
+ #endif

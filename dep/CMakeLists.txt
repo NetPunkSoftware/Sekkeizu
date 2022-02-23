@@ -43,12 +43,19 @@ FetchContent_Declare(
     mongoc
     GIT_REPOSITORY https://github.com/mongodb/mongo-c-driver
     GIT_TAG        5bb9926bfa649d2d271ace15f3a2620e2e2bfc42 # 1.21
-    PATCH_COMMAND  ${GIT_EXECUTABLE} apply --whitespace=fix ${CMAKE_CURRENT_SOURCE_DIR}/mongoc-win32-clang.patch
 )
 
 FetchContent_GetProperties(mongoc)
 if(NOT mongoc_POPULATED)
     FetchContent_Populate(mongoc)
+
+    if (WIN32 AND ${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
+        execute_process(
+            COMMAND ${GIT_EXECUTABLE} apply --whitespace=fix ${CMAKE_CURRENT_SOURCE_DIR}/mongoc-win32-clang.patch
+	    WORKING_DIRECTORY ${mongoc_SOURCE_DIR}
+	    ERROR_QUIET)
+    endif()
+
     add_subdirectory(${mongoc_SOURCE_DIR} ${mongoc_BINARY_DIR})
 endif()
 
@@ -58,6 +65,7 @@ target_link_libraries(sekkeizu PUBLIC mongoc_static)
 
 ####################################################################################
 # cryptopp
+set(BUILD_SHARED            OFF CACHE INTERNAL "")
 set(BUILD_TESTING           OFF CACHE INTERNAL "")
 
 FetchContent_Declare(
@@ -81,6 +89,13 @@ if(NOT cryptopp_POPULATED)
         ${cryptopp_SOURCE_DIR}/cryptopp-config.cmake
         COPYONLY
     )
+
+    if (WIN32 AND ${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
+        execute_process(
+            COMMAND ${GIT_EXECUTABLE} apply --whitespace=fix ${CMAKE_CURRENT_SOURCE_DIR}/cryptopp-win32-clang.patch
+            WORKING_DIRECTORY ${cryptopp_SOURCE_DIR}
+            ERROR_QUIET)
+    endif()
 
     add_subdirectory(${cryptopp_SOURCE_DIR} ${cryptopp_BINARY_DIR})
 endif()
