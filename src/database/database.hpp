@@ -25,6 +25,7 @@ class database
 public:
     database() noexcept = default;
     database(np::fiber_pool<pool_traits>* fiber_pool) noexcept;
+    ~database() noexcept;
 
     void set_fiber_pool(np::fiber_pool<pool_traits>* fiber_pool) noexcept;
     void init(const char* uri, const std::string& database) noexcept;
@@ -147,6 +148,12 @@ void database<pool_traits>::init(const char* uri, const std::string& database) n
 
     // Done
     _database = database;
+}
+
+template <typename pool_traits>
+database<pool_traits>::~database() noexcept
+{
+    mongoc_cleanup();
 }
 
 template <typename pool_traits>
