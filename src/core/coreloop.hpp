@@ -5,6 +5,7 @@
 
 #include <pool/fiber_pool.hpp>
 #include <synchronization/mutex.hpp>
+#include <synchronization/spinbarrier.hpp>
 #include <ext/executor.hpp>
 
 #include <boost/asio.hpp>
@@ -88,7 +89,7 @@ public:
     core_loop(uint16_t port, uint16_t core_threads, uint16_t network_threads, uint16_t database_threads) noexcept;
 
     template <typename database_traits>
-    void start(database<database_traits>* database) noexcept;
+    void start(database<database_traits>* database, bool join_pools=true) noexcept;
 
     template <typename C>
     void send_data(const udp::endpoint& endpoint, const void* buffer, uint32_t size, C&& callback) noexcept;
@@ -153,6 +154,10 @@ protected:
     uint16_t _num_core_threads;
     uint16_t _num_network_threads;
     uint16_t _num_database_threads;
+
+    // Stopping
+    bool _must_join_during_stop;
+    np::spinbarrier _stop_barrier;
 };
 
 template <typename traits, typename... plugins>
@@ -171,12 +176,13 @@ core_loop<traits, plugins...>::core_loop(uint16_t port, uint16_t num_core_thread
     _socket(_context, udp::endpoint(udp::v4(), port)),
     _num_core_threads(num_core_threads),
     _num_network_threads(num_network_threads),
-    _num_database_threads(num_database_threads)
+    _num_database_threads(num_database_threads),
+    _stop_barrier(2)
 {}
 
 template <typename traits, typename... plugins>
 template <typename database_traits>
-void core_loop<traits, plugins...>::start(database<database_traits>* database) noexcept
+void core_loop<traits, plugins...>::start(database<database_traits>* database, bool join_pools) noexcept
 {
     // Fire up network thread
     for (int i = 0; i < _num_network_threads; ++i)
@@ -195,6 +201,7 @@ void core_loop<traits, plugins...>::start(database<database_traits>* database) n
 
     // Push main loop logic
     _running = true;
+    _must_join_during_stop = !join_pools;
     _core_pool.push([this] () noexcept {
 #ifdef _MSC_VER
         timeBeginPeriod(1);
@@ -228,7 +235,17 @@ void core_loop<traits, plugins...>::start(database<database_traits>* database) n
             call_post_tick_proxy();
         }
 
+        // Stop pools
         _core_pool.end();
+        _database_pool.end();
+
+        // Stop networking
+        _work.reset();
+        _context.stop();
+        for (auto& t : _network_threads)
+        {
+            t.join();
+        }
 
 #ifdef _MSC_VER
         timeEndPeriod(1);
@@ -236,15 +253,14 @@ void core_loop<traits, plugins...>::start(database<database_traits>* database) n
     });
 
     // Start, wait until done, and then join
-    _core_pool.start(_num_core_threads);
-    _core_pool.join();
-
-    // Stop networking
-    _work.reset();
-    _context.stop();
-    for (auto& t : _network_threads)
+    _core_pool.start(_num_core_threads, join_pools);
+    if (join_pools)
     {
-        t.join();
+        _core_pool.join();
+        _database_pool.join();
+
+        // Signal end
+        _stop_barrier.wait();
     }
 }
 
