@@ -90,6 +90,7 @@ public:
 
     template <typename database_traits>
     void start(database<database_traits>* database, bool join_pools=true) noexcept;
+    void stop() noexcept;
 
     template <typename C>
     void send_data(const udp::endpoint& endpoint, const void* buffer, uint32_t size, C&& callback) noexcept;
@@ -260,6 +261,22 @@ void core_loop<traits, plugins...>::start(database<database_traits>* database, b
         _database_pool.join();
 
         // Signal end
+        _stop_barrier.wait();
+    }
+}
+
+template <typename traits, typename... plugins>
+void core_loop<traits, plugins...>::stop() noexcept
+{
+    _running = false;
+
+    if (_must_join_during_stop)
+    {
+        _core_pool.join();
+        _database_pool.join();
+    }
+    else
+    {
         _stop_barrier.wait();
     }
 }
