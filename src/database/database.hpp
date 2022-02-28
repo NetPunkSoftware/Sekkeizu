@@ -166,6 +166,16 @@ template <typename pool_traits>
 template <typename F>
 void database<pool_traits>::execute(F&& function) noexcept
 {
+// TODO(gpascualg): Only enable db connection check in test
+#ifndef NDEBUG
+    // We don't want/need this check outside tests
+    if (!_is_connected)
+    {
+        return;
+    }
+#endif
+
+    assert(_is_connected && "Can't query a database that has no connection");
     _fiber_pool->push([this, function = std::forward<F>(function)]() mutable {
         auto client = mongoc_client_pool_pop(_pool);
         auto database = mongoc_client_get_database(client, _database.c_str());
