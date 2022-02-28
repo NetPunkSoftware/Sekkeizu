@@ -263,6 +263,11 @@ void core_loop<traits, plugins...>::start(database<database_traits>* database, b
         // Signal end
         _stop_barrier.wait();
     }
+    else
+    {
+        // If not joining, for instance for tests and co, allow the main thread to do ops with this pool
+        _core_pool.enable_main_thread_calls_here();
+    }
 }
 
 template <typename traits, typename... plugins>
