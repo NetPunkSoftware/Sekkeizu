@@ -116,15 +116,19 @@ void coreloop_network_plugin<derived, network_buffer, max_concurrent_threads>::t
 
         for (auto& [endpoint, pending_buffers] : _pending_inputs[idx])
         {
-            auto it = _endpoint_data.find(endpoint); 
-            assert(it != _endpoint_data.end() && "Client data should have been created already");
-            for (auto& buffer : pending_buffers)
+            // Client data should have been created already, but a race condition could make a new client data
+            //  be populated right after new clients have been created and before this local mutex is locked
+            auto it = _endpoint_data.find(endpoint);
+            if (it != _endpoint_data.end()) [[likely]]
             {
-                it->second.push_back(buffer);
-            }
+                // Reserve data and insert it
+                auto& data_vector = it->second;
+                data_vector.reserve(data_vector.size() + pending_buffers.size());
+                data_vector.insert(data_vector.end(), pending_buffers.begin(), pending_buffers.end());
 
-            // Clear all pending_buffers
-            pending_buffers.clear();
+                // Clear all pending_buffers
+                pending_buffers.clear();
+            }
         }
 
         _local_mutex[idx].unlock();
