@@ -401,7 +401,7 @@ inline void core_loop<traits, plugins...>::call_handle_network_packet_proxy(uint
 }
 
 template <typename traits, typename... plugins>
-template <typename plugin>
+template <typename P>
 inline void core_loop<traits, plugins...>::call_network_thread_start_proxy_impl() noexcept
 {
     if constexpr (plugin_has_network_thread_start<P, core_loop<traits, plugins...>>)
