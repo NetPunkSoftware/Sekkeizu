@@ -55,6 +55,12 @@ struct core_traits
 
 
 template <typename P, typename T>
+concept plugin_has_network_thread_start = requires (P plugin, T* core)
+{
+    { plugin.network_thread_start(core) };
+};
+
+template <typename P, typename T>
 concept plugin_has_pre_tick = requires (P plugin, T* core)
 {
     { plugin.pre_tick(core) };
@@ -113,12 +119,16 @@ protected:
     void handle_connections(uint8_t unique_id) noexcept;
 
     // NOTE(gpascualg): MSVC won't compile is directly calling plugins::tick, use this as a bypass
+    inline void call_network_thread_start_proxy() noexcept;
     inline void call_pre_tick_proxy() noexcept;
     inline void call_tick_proxy(const typename traits::base_time& diff) noexcept;
     inline void call_post_tick_proxy() noexcept;
     inline void call_handle_network_packet_proxy(uint8_t unique_id, udp::endpoint* endpoint, typename traits::network_buffer* buffer) noexcept;
 
     // Per plugin call to check if the method is implemented in the plugin
+    template <typename P>
+    inline void call_network_thread_start_proxy_impl() noexcept;
+
     template <typename P>
     inline void call_pre_tick_proxy_impl() noexcept;
 
@@ -189,7 +199,10 @@ void core_loop<traits, plugins...>::start(database<database_traits>* database, b
     for (int i = 0; i < _num_network_threads; ++i)
     {
         // TODO(gpascualg): The following should work: emplace_back(&boost::asio::io_context::run, & _context)
-        _network_threads.emplace_back([this] { _context.run(); }); 
+        _network_threads.emplace_back([this] { 
+            call_network_thread_start_proxy();
+            _context.run(); 
+        }); 
         handle_connections(i);
     }
 
@@ -358,6 +371,12 @@ inline void core_loop<traits, plugins...>::release_network_endpoint(udp::endpoin
 }
 
 template <typename traits, typename... plugins>
+inline void core_loop<traits, plugins...>::call_network_thread_start_proxy() noexcept
+{
+    (..., call_network_thread_start_proxy_impl<plugins>());
+}
+
+template <typename traits, typename... plugins>
 inline void core_loop<traits, plugins...>::call_pre_tick_proxy() noexcept
 {
     (..., call_pre_tick_proxy_impl<plugins>());
@@ -379,6 +398,16 @@ template <typename traits, typename... plugins>
 inline void core_loop<traits, plugins...>::call_handle_network_packet_proxy(uint8_t unique_id, udp::endpoint* endpoint, typename traits::network_buffer* buffer) noexcept
 {
     (..., call_handle_network_packet_proxy_impl<plugins>(unique_id, endpoint, buffer));
+}
+
+template <typename traits, typename... plugins>
+template <typename plugin>
+inline void core_loop<traits, plugins...>::call_network_thread_start_proxy_impl() noexcept
+{
+    if constexpr (plugin_has_network_thread_start<P, core_loop<traits, plugins...>>)
+    {
+        this->P::network_thread_start(this);
+    }
 }
 
 template <typename traits, typename... plugins>
